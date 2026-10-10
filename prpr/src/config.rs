@@ -86,6 +86,7 @@ pub struct Config {
     pub bar: bool,
     pub combo_anim: bool,
     pub emitting: bool,
+    pub score_aim: bool,
 
     // for compatibility
     pub autoplay: Option<bool>,
@@ -151,6 +152,7 @@ impl Default for Config {
             bar: true,
             combo_anim: false,
             emitting: false,
+            score_aim: false,
 
             ui_score: true,
             ui_combo: true,
