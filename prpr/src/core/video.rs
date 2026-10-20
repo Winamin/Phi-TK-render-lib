@@ -2,7 +2,7 @@ use super::{Anim, Resource};
 use crate::ext::{source_of_image, ScaleType};
 use anyhow::Result;
 use macroquad::prelude::*;
-use macroquad::miniquad::{Texture, TextureFormat, TextureParams, TextureWrap};
+use macroquad::miniquad::{FilterMode, MipmapFilter, Texture, TextureFormat, TextureParams, TextureWrap};
 use prpr_avc::AVPixelFormat;
 use std::collections::VecDeque;
 use std::io::Write;
@@ -60,6 +60,7 @@ fn new_tex(w: u32, h: u32) -> Texture2D {
             format: TextureFormat::Alpha,
             filter: FilterMode::Linear,
             wrap: TextureWrap::Clamp,
+            mipmap_filter: MipmapFilter::None,
         },
     ))
 }
@@ -263,16 +264,19 @@ impl Video {
 }
 
 mod shader {
-    pub const VERTEX: &str = r#"#version 300 es
-in vec3 position;
-in vec2 texcoord;
-in vec4 color0;
+    pub const VERTEX: &str = r#"#version 450 core
+layout(location = 0) in vec3 position;
+layout(location = 1) in vec2 texcoord;
+layout(location = 2) in uvec4 color0;
 
-out vec2 uv;
-out vec4 color;
+layout(set = 0, binding = 0) uniform Uniforms {
+    mat4 Projection;
+    mat4 Model;
+    vec4 _Time;
+};
 
-uniform mat4 Model;
-uniform mat4 Projection;
+layout(location = 0) out vec2 uv;
+layout(location = 1) out vec4 color;
 
 void main() {
     gl_Position = Projection * Model * vec4(position, 1.0);
@@ -280,17 +284,21 @@ void main() {
     uv = texcoord;
 }"#;
 
-    pub const FRAGMENT: &str = r#"#version 300 es
-precision mediump float;
+    pub const FRAGMENT: &str = r#"#version 450 core
+layout(location = 0) in vec2 uv;
+layout(location = 1) in vec4 color;
 
-in vec4 color;
-in vec2 uv;
+layout(set = 0, binding = 0) uniform Uniforms {
+    mat4 Projection;
+    mat4 Model;
+    vec4 _Time;
+};
 
-out vec4 FragColor;
+layout(set = 0, binding = 3) uniform sampler2D tex_y;
+layout(set = 0, binding = 4) uniform sampler2D tex_u;
+layout(set = 0, binding = 5) uniform sampler2D tex_v;
 
-uniform sampler2D tex_y;
-uniform sampler2D tex_u;
-uniform sampler2D tex_v;
+layout(location = 0) out vec4 FragColor;
 
 void main() {
     vec3 yuv = vec3(

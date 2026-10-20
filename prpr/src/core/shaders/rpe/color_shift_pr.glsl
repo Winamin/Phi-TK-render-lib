@@ -1,8 +1,8 @@
-#version 100
-precision mediump float;
+#version 450 core
 
 uniform sampler2D screenTexture;
-varying vec2 uv;
+layout(location = 0) in vec2 uv;
+layout(location = 0) out vec4 fragColor;
 
 uniform float hueShift; // %0.0%
 uniform float saturationShift; // %0.0%
@@ -67,7 +67,7 @@ vec3 hsv2rgb(vec3 c)
 void main()
 {
     // 获取当前像素颜色
-    vec4 color = texture2D(screenTexture, uv);
+    vec4 color = texture(screenTexture, uv);
     
     // 将 RGB 转为 HSV
     vec3 hsv = rgb2hsv(color.rgb);
@@ -86,5 +86,5 @@ void main()
     vec3 rgb = hsv2rgb(hsv);
     
     // 输出最终颜色
-    gl_FragColor = vec4(rgb, 1.0);
+    fragColor = vec4(rgb, 1.0);
 }

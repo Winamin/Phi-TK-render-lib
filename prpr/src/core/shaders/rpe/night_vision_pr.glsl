@@ -1,7 +1,7 @@
-#version 100
-precision highp float;
+#version 450 core
 
-varying vec2 uv;
+layout(location = 0) in vec2 uv;
+layout(location = 0) out vec4 fragColor;
 
 uniform sampler2D screenTexture;
 uniform vec2 screenSize;
@@ -15,7 +15,7 @@ float random(vec2 uv) {
 
 void main() {
     vec2 uv = uv;
-    vec4 color = texture2D(screenTexture, uv);
+    vec4 color = texture(screenTexture, uv);
 
     // 将颜色转换为灰度
     float gray = dot(color.rgb, vec3(0.299, 0.587, 0.114));
@@ -41,5 +41,5 @@ void main() {
     nightVisionColor *= (1.0 - vignette * 0.8);
 
     // 输出最终的颜色
-    gl_FragColor = vec4(nightVisionColor, 1.0);
+    fragColor = vec4(nightVisionColor, 1.0);
 }

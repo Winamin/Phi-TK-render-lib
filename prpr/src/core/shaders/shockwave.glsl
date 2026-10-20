@@ -1,8 +1,8 @@
-#version 100
+#version 450 core
 // Adapted from https://www.shadertoy.com/view/llj3Dz
-precision mediump float;
 
-varying lowp vec2 uv;
+layout(location = 0) in vec2 uv;
+layout(location = 0) out vec4 fragColor;
 uniform vec2 screenSize;
 uniform sampler2D screenTexture;
 
@@ -31,10 +31,10 @@ void main() {
     vec2 dir = normalize(tex_coord - center);
 
     tex_coord += ((dir * dt) / (progress * dist * 40.0));
-    gl_FragColor = texture2D(screenTexture, vec2(tex_coord.x, (tex_coord.y - 0.5) / aspect + 0.5));
+    fragColor = texture(screenTexture, vec2(tex_coord.x, (tex_coord.y - 0.5) / aspect + 0.5));
 
-    gl_FragColor += (gl_FragColor * scale_diff) / (progress * dist * 40.0);
+    fragColor += (fragColor * scale_diff) / (progress * dist * 40.0);
   } else {
-    gl_FragColor = texture2D(screenTexture, vec2(tex_coord.x, (tex_coord.y - 0.5) / aspect + 0.5));
+    fragColor = texture(screenTexture, vec2(tex_coord.x, (tex_coord.y - 0.5) / aspect + 0.5));
   }
 }

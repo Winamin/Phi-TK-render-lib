@@ -1,7 +1,7 @@
-#version 100
-precision highp float;
+#version 450 core
 
-varying vec2 uv;
+layout(location = 0) in vec2 uv;
+layout(location = 0) out vec4 fragColor;
 uniform sampler2D screenTexture;       // 背景纹理
 uniform float time;                // 用于动画的时间参数
 uniform float strength; // %0.03%
@@ -36,7 +36,7 @@ const vec2 rectMax = vec2(1.0, 1.0);
 
 void main()
 {
-	vec4 oriColor = texture2D(screenTexture, uv);
+	vec4 oriColor = texture(screenTexture, uv);
 	
 	
     // 使用时间和纹理坐标生成动态噪声
@@ -48,11 +48,11 @@ void main()
 
 	if (newuv.x >= rectMin.x && newuv.x <= rectMax.x && newuv.y >= rectMin.y && newuv.y <= rectMax.y) 
 	{
-		gl_FragColor = texture2D(screenTexture, newuv);
+		fragColor = texture(screenTexture, newuv);
 	}
 	else
 	{
-		gl_FragColor = vec4(0, 0, 0, 1);
+		fragColor = vec4(0, 0, 0, 1);
 	}
-	gl_FragColor.a = 1.0;
+	fragColor.a = 1.0;
 }

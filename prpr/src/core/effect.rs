@@ -192,13 +192,14 @@ impl Effect {
         for u in &uniforms {
             add_uniform(u.uniform_pair());
         }
+        let uniforms_block = uniform_block(&new_uniforms);
         Ok(Self {
             time_range,
             t: f32::NEG_INFINITY,
             defaults,
             material: load_material(
-                VERTEX_SHADER,
-                shader,
+                &vertex_shader(&uniforms_block),
+                &fragment_shader(shader, &uniforms_block),
                 MaterialParams {
                     uniforms: new_uniforms,
                     textures: vec!["screenTexture".to_owned()],
@@ -258,18 +259,85 @@ impl Drop for Effect {
     }
 }
 
-const VERTEX_SHADER: &str = r#"#version 100
-attribute vec3 position;
-attribute vec2 texcoord;
-attribute vec4 color0;
+/// First texture binding a material may use; macroquad reserves `0` for the
+/// uniform buffer and bindings 1 and 2 for `Texture` / `_ScreenTexture`.
+const FIRST_MATERIAL_TEXTURE_BINDING: u32 = 3;
 
-varying vec2 uv;
+/// Build the uniform block both shader stages of an effect share.
+///
+/// GLSL for Vulkan has no loose uniforms, and the block has to list its
+/// members in exactly the order `MaterialParams::uniforms` does because both
+/// sides lay it out as std140.
+fn uniform_block(uniforms: &[(String, UniformType)]) -> String {
+    let mut members =
+        String::from("    mat4 Projection;\n    mat4 Model;\n    vec4 _Time;\n");
+    for (name, its_type) in uniforms {
+        members.push_str(&format!("    {} {};\n", glsl_type(*its_type), name));
+    }
+    format!("layout(set = 0, binding = 0) uniform Uniforms {{\n{}}};\n", members)
+}
 
-uniform mat4 Model;
-uniform mat4 Projection;
-uniform vec2 UVScale;
+fn glsl_type(its_type: UniformType) -> &'static str {
+    match its_type {
+        UniformType::Float1 => "float",
+        UniformType::Float2 => "vec2",
+        UniformType::Float3 => "vec3",
+        UniformType::Float4 => "vec4",
+        UniformType::Int1 => "int",
+        UniformType::Int2 => "ivec2",
+        UniformType::Int3 => "ivec3",
+        UniformType::Int4 => "ivec4",
+        UniformType::Mat4 => "mat4",
+    }
+}
 
+const VERTEX_SHADER_HEAD: &str = r#"#version 450 core
+layout(location = 0) in vec3 position;
+layout(location = 1) in vec2 texcoord;
+
+layout(location = 0) out vec2 uv;
+
+"#;
+
+const VERTEX_SHADER_BODY: &str = r#"
 void main() {
     gl_Position = Projection * Model * vec4(position, 1);
     uv = (texcoord - vec2(0.5)) * UVScale + vec2(0.5);
-}"#;
+}
+"#;
+
+fn vertex_shader(uniforms_block: &str) -> String {
+    [VERTEX_SHADER_HEAD, uniforms_block, VERTEX_SHADER_BODY].concat()
+}
+
+/// Move an effect shader onto the GLSL that Vulkan accepts.
+///
+/// The loose `uniform` declarations are pulled into `uniforms_block`: the
+/// samplers become separately bound combined image samplers, everything else
+/// becomes a member of the block.
+fn fragment_shader(source: &str, uniforms_block: &str) -> String {
+    static UNIFORM_RE: Lazy<Regex> =
+        Lazy::new(|| Regex::new(r"(?m)^uniform\s+(\w+)\s+(\w+);([^\n]*)").unwrap());
+
+    let mut binding = FIRST_MATERIAL_TEXTURE_BINDING;
+    let mut written = false;
+    UNIFORM_RE
+        .replace_all(source, |caps: &regex::Captures| {
+            let (its_type, name) = (&caps[1], &caps[2]);
+            let tail = &caps[3];
+            if its_type.starts_with("sampler") {
+                let decl = format!(
+                    "layout(set = 0, binding = {}) uniform {} {};{}",
+                    binding, its_type, name, tail
+                );
+                binding += 1;
+                decl
+            } else if written {
+                String::new()
+            } else {
+                written = true;
+                uniforms_block.to_owned()
+            }
+        })
+        .into_owned()
+}

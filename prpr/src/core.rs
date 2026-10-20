@@ -29,7 +29,7 @@ mod object;
 pub use object::{CtrlObject, Object};
 
 mod render;
-pub use render::{begin_readback_cycle, copy_fbo, internal_id, MSRenderTarget};
+pub use render::{begin_readback_cycle, MSRenderTarget};
 
 mod resource;
 pub use resource::{NoteStyle, ParticleEmitter, ResPackInfo, Resource, ResourcePack, DPI_VALUE};

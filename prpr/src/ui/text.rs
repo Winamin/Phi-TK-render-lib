@@ -218,12 +218,7 @@ impl<'a, 's, 'ui> DrawText<'a, 's, 'ui> {
     }
 }
 
-static TEXTURE_DIM: Lazy<u32> = Lazy::new(|| unsafe {
-    use macroquad::miniquad::gl::*;
-    let mut size = 0;
-    glGetIntegerv(GL_MAX_TEXTURE_SIZE, &mut size);
-    (size as u32).min(2048)
-});
+static TEXTURE_DIM: Lazy<u32> = Lazy::new(|| Texture::max_size(unsafe { get_internal_gl() }.quad_context).min(2048));
 
 /// Glyph cache size we start with. Growing through the `TextureTooSmall` path
 /// in `submit` is much cheaper than allocating the largest texture the GPU can
@@ -261,6 +256,7 @@ impl TextPainter {
                 filter: FilterMode::Linear,
                 format: miniquad::TextureFormat::RGBA8,
                 wrap: miniquad::TextureWrap::Clamp,
+                mipmap_filter: miniquad::MipmapFilter::None,
             },
         ))
     }
@@ -271,30 +267,26 @@ impl TextPainter {
 
     fn submit(&mut self) {
         let mut flushed = false;
+        let quad_context = unsafe { get_internal_gl() }.quad_context;
         loop {
             match self.brush.process_queued(
-                |rect, tex_data| unsafe {
+                |rect, tex_data| {
                     if !flushed {
-                        get_internal_gl().flush();
+                        unsafe { get_internal_gl() }.flush();
                         flushed = true;
                     }
-                    use macroquad::miniquad::gl::*;
-                    glBindTexture(GL_TEXTURE_2D, self.cache_texture.raw_miniquad_texture_handle().gl_internal_id());
                     self.data_buffer.clear();
                     self.data_buffer.reserve(tex_data.len() * 4);
                     for alpha in tex_data {
                         self.data_buffer.extend_from_slice(&[255, 255, 255, *alpha]);
                     }
-                    glTexSubImage2D(
-                        GL_TEXTURE_2D,
-                        0,
-                        rect.min[0] as _,
-                        rect.min[1] as _,
-                        rect.width() as _,
-                        rect.height() as _,
-                        GL_RGBA,
-                        GL_UNSIGNED_BYTE,
-                        self.data_buffer.as_ptr() as _,
+                    self.cache_texture.raw_miniquad_texture_handle().update_texture_part(
+                        quad_context,
+                        rect.min[0] as i32,
+                        rect.min[1] as i32,
+                        rect.width() as i32,
+                        rect.height() as i32,
+                        &self.data_buffer,
                     );
                 },
                 |vertex| {

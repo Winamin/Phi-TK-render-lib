@@ -1,7 +1,7 @@
-#version 100
-precision mediump float;
+#version 450 core
 
-varying vec2 uv; // 材质 UV
+layout(location = 0) in vec2 uv; // 材质 UV
+layout(location = 0) out vec4 fragColor;
 uniform sampler2D screenTexture; // 屏幕材质
 uniform vec2 screenSize; // 屏幕大小
 uniform float strength; // %1.0%
@@ -9,7 +9,7 @@ uniform float time; // 时间，以秒为单位
 
 vec4 getcolor(vec2 uv)
 {
-    return texture2D(screenTexture, uv);
+    return texture(screenTexture, uv);
 }
 
 void main()
@@ -40,7 +40,7 @@ void main()
     float sumX = 0.0;
     float sumY = 0.0;
 
-    vec3 originalColor = texture2D(screenTexture, uv).rgb;
+    vec3 originalColor = texture(screenTexture, uv).rgb;
 
     for (int i = 0; i < 9; i++) {
         vec4 color = getcolor(uv + texOffset[i]);
@@ -53,5 +53,5 @@ void main()
 
     vec3 finalColor = mix(originalColor, vec3(sobelValue), strength);
 
-    gl_FragColor = vec4(finalColor, 1.0);
+    fragColor = vec4(finalColor, 1.0);
 }

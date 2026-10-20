@@ -1,7 +1,7 @@
-#version 100
-precision highp float;
+#version 450 core
 
-varying vec2 uv;          // 材质 UV
+layout(location = 0) in vec2 uv;          // 材质 UV
+layout(location = 0) out vec4 fragColor;
 uniform vec2 screenSize;  // 屏幕大小
 uniform sampler2D screenTexture;  // 屏幕材质
 uniform float time;       // 时间，以秒为单位
@@ -25,7 +25,7 @@ vec2 generateDropPosition(float index, float timeOffset) {
 // 主程序
 void main() {
     vec2 uvCoord = uv;  // 归一化屏幕坐标
-    vec4 bgColor = texture2D(screenTexture, uvCoord);
+    vec4 bgColor = texture(screenTexture, uvCoord);
 
     float dropWidth = width;   // 雨滴的宽度
     float dropHeight = height; // 雨滴的高度
@@ -44,10 +44,10 @@ void main() {
     // 如果当前像素属于任意雨滴，将雨滴颜色叠加到背景上
     if (dropPresent > 0.0) {
         vec4 rainOverlay = rainColor;
-        gl_FragColor = mix(bgColor, rainOverlay, rainOverlay.a); // 将雨滴叠加到背景上
-        gl_FragColor.a = 1.0;
+        fragColor = mix(bgColor, rainOverlay, rainOverlay.a); // 将雨滴叠加到背景上
+        fragColor.a = 1.0;
     } else {
-        gl_FragColor = bgColor;  // 如果不属于雨滴，保持背景图片不变
-        gl_FragColor.a = 1.0;
+        fragColor = bgColor;  // 如果不属于雨滴，保持背景图片不变
+        fragColor.a = 1.0;
     }
 }

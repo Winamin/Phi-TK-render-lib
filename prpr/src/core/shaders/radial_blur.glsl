@@ -1,8 +1,8 @@
-#version 100
+#version 450 core
 // Adapted from https://godotshaders.com/shader/radical-blur-shader/
-precision mediump float;
 
-varying lowp vec2 uv;
+layout(location = 0) in vec2 uv;
+layout(location = 0) out vec4 fragColor;
 uniform sampler2D screenTexture;
 
 uniform float centerX; // %0.5% 0..1
@@ -17,7 +17,7 @@ void main() {
   vec2 screen_uv = uv / 2.0 + vec2(0.5, 0.5);
   for (float i = 0.0; i < 64.0; ++i) {
     if (i >= sampleCount) break;
-    c += texture2D(screenTexture, uv - power * direction * i).rgb * f;
+    c += texture(screenTexture, uv - power * direction * i).rgb * f;
   }
-  gl_FragColor.rgb = c;
+  fragColor.rgb = c;
 }

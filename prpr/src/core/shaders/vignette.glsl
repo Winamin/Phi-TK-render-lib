@@ -1,8 +1,8 @@
-#version 100
+#version 450 core
 // Adapted from https://www.shadertoy.com/view/lsKSWR
-precision mediump float;
 
-varying lowp vec2 uv;
+layout(location = 0) in vec2 uv;
+layout(location = 0) out vec4 fragColor;
 uniform vec2 screenSize;
 uniform sampler2D screenTexture;
 
@@ -14,5 +14,5 @@ void main() {
   vec2 new_uv = uv * (1.0 - uv.yx);
   float vig = new_uv.x * new_uv.y * radius;
   vig = pow(vig, extend);
-  gl_FragColor = mix(color, texture2D(screenTexture, uv), vig);
+  fragColor = mix(color, texture(screenTexture, uv), vig);
 }

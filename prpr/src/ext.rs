@@ -10,7 +10,7 @@ use lyon::{
     path::{builder::BorderRadii, Path, Winding},
 };
 use macroquad::prelude::*;
-use macroquad::miniquad::{gl::GLenum, BlendFactor, BlendState, BlendValue, CompareFunc, Equation, PrimitiveType, StencilFaceState, StencilOp, StencilState};
+use macroquad::miniquad::{BlendFactor, BlendState, BlendValue, CompareFunc, Equation, PrimitiveType, StencilFaceState, StencilOp, StencilState};
 use once_cell::sync::Lazy;
 use ordered_float::{Float, NotNan};
 use sasa::AudioManager;
@@ -23,15 +23,8 @@ use std::{
     task::{Poll, RawWaker, RawWakerVTable, Waker},
 };
 use tracing::{debug, info_span};
-use macroquad::miniquad::gl::{
-    glGetIntegerv, glBindTexture, glTexParameteri,
-    GL_TEXTURE_2D,
-    GL_TEXTURE_MIN_FILTER,
-    GL_TEXTURE_MAG_FILTER,
-};
 
 pub type LocalTask<R> = Option<Pin<Box<dyn Future<Output = R>>>>;
-const GL_TEXTURE_BINDING_2D: u32 = 0x8069;
 
 pub trait JoinToString {
     fn join(self, sep: &str) -> String;
@@ -109,30 +102,13 @@ impl SafeTexture {
     }
 
     pub fn with_mipmap(self) -> Self {
-        let id = self.0 .0.raw_miniquad_texture_handle().gl_internal_id();
-        unsafe {
-            use macroquad::miniquad::gl::*;
-            glBindTexture(GL_TEXTURE_2D, id);
-            glGenerateMipmap(GL_TEXTURE_2D);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR as _);
-        }
+        let handle = self.0 .0.raw_miniquad_texture_handle();
+        handle.generate_mipmap(unsafe { get_internal_gl() }.quad_context);
         self
     }
 
-    pub fn with_filter(self, filter: GLenum) -> Self {
-        let id = self.0 .0.raw_miniquad_texture_handle().gl_internal_id();
-        unsafe {
-            let mut prev_binding: i32 = 0;
-            glGetIntegerv(GL_TEXTURE_BINDING_2D, &mut prev_binding);
-
-            glBindTexture(GL_TEXTURE_2D, id);
-
-            let filter_val = filter as i32;
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filter_val);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter_val);
-
-            glBindTexture(GL_TEXTURE_2D, prev_binding as u32);
-        }
+    pub fn with_filter(self, filter: FilterMode) -> Self {
+        self.0 .0.set_filter(filter);
         self
     }
 
@@ -582,16 +558,19 @@ pub fn parse_time(s: &str) -> Option<f32> {
 
 
 mod shader {
-    pub const VERTEX: &str = r#"#version 100
-attribute vec3 position;
-attribute vec2 texcoord;
-attribute vec4 color0;
+    pub const VERTEX: &str = r#"#version 450 core
+layout(location = 0) in vec3 position;
+layout(location = 1) in vec2 texcoord;
+layout(location = 2) in uvec4 color0;
 
-varying lowp vec2 uv;
-varying lowp vec4 color;
+layout(set = 0, binding = 0) uniform Uniforms {
+    mat4 Projection;
+    mat4 Model;
+    vec4 _Time;
+};
 
-uniform mat4 Model;
-uniform mat4 Projection;
+layout(location = 0) out vec2 uv;
+layout(location = 1) out vec4 color;
 
 void main() {
     gl_Position = Projection * Model * vec4(position, 1);
@@ -599,13 +578,20 @@ void main() {
     uv = texcoord;
 }"#;
 
-    pub const FRAGMENT: &str = r#"#version 100
-varying lowp vec4 color;
-varying lowp vec2 uv;
+    pub const FRAGMENT: &str = r#"#version 450 core
+layout(location = 0) in vec2 uv;
+layout(location = 1) in vec4 color;
 
-uniform sampler2D Texture;
+layout(set = 0, binding = 0) uniform Uniforms {
+    mat4 Projection;
+    mat4 Model;
+    vec4 _Time;
+};
+
+layout(set = 0, binding = 1) uniform sampler2D Texture;
+layout(location = 0) out vec4 fragColor;
 
 void main() {
-    gl_FragColor = color * texture2D(Texture, uv);
+    fragColor = color * texture(Texture, uv);
 }"#;
 }

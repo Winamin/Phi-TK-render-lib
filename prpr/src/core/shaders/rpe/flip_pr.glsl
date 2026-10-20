@@ -1,5 +1,4 @@
-#version 100
-precision mediump float;
+#version 450 core
 
 // 传入的方向：0 表示水平翻转，1 表示垂直翻转
 uniform float direction; // %0.0%
@@ -8,7 +7,8 @@ uniform float progress; // %1.0%
 // 纹理
 uniform sampler2D screenTexture; // 替换u_texture和CC_Texture0
 // 纹理坐标
-varying vec2 uv; // 替换v_texCoord
+layout(location = 0) in vec2 uv; // 替换v_texCoord
+layout(location = 0) out vec4 fragColor;
 
 void main() {
     vec2 uvCoord = uv;
@@ -43,7 +43,7 @@ void main() {
 		uvCoord.y = mix(uvCoord.y, adjusted_y, progress);
     }
 	
-	vec4 color = texture2D(screenTexture, uvCoord); // 替换CC_Texture0为screenTexture
-	gl_FragColor = color;
-	gl_FragColor.a = 1.0;
+	vec4 color = texture(screenTexture, uvCoord); // 替换CC_Texture0为screenTexture
+	fragColor = color;
+	fragColor.a = 1.0;
 }

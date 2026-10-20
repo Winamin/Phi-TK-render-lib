@@ -1,14 +1,14 @@
-#version 100
-precision mediump float;
+#version 450 core
 
-varying vec2 uv; // 纹理坐标
+layout(location = 0) in vec2 uv; // 纹理坐标
+layout(location = 0) out vec4 fragColor;
 uniform float time;  // 时间变量，用于波浪效果
 uniform vec2 screenSize;  // 屏幕分辨率
 uniform sampler2D screenTexture; // 输入的屏幕纹理
 
 void main() {
     vec2 uvCoord = uv;
-    vec4 color = texture2D(screenTexture, uvCoord);
+    vec4 color = texture(screenTexture, uvCoord);
     
     // 计算波浪效果
     float wave = sin(uvCoord.y * 10.0 + time * 5.0) * 0.01;
@@ -22,10 +22,10 @@ void main() {
     float blur = sin(time * 1.5) * 0.005;
     uvCoord += vec2(blur, blur);
     
-    vec4 blurColor = texture2D(screenTexture, uvCoord) * 0.9;
+    vec4 blurColor = texture(screenTexture, uvCoord) * 0.9;
     color = mix(color, blurColor, 0.5);
 
     // 输出最终颜色
-    gl_FragColor = color;
-    gl_FragColor.a = 1.0;
+    fragColor = color;
+    fragColor.a = 1.0;
 }

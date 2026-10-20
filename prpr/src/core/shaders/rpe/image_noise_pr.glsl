@@ -1,7 +1,7 @@
-#version 100
-precision highp float;
+#version 450 core
 
-varying lowp vec2 uv;
+layout(location = 0) in vec2 uv;
+layout(location = 0) out vec4 fragColor;
 uniform sampler2D screenTexture;
 uniform float time;
 
@@ -26,7 +26,7 @@ float noise(vec2 p) {
 }
 
 void main() {
-    vec4 color = texture2D(screenTexture, uv);
+    vec4 color = texture(screenTexture, uv);
     
     // 噪点随时间变化，加入uv扰动
     float noisyFactor = noise(uv * density + time * 0.1) * 2.0 - 1.0;
@@ -34,6 +34,6 @@ void main() {
     // 添加噪点
     vec4 noisyColor = color + vec4(vec3(noisyFactor) * power, 0.0);
     
-    gl_FragColor = noisyColor;
-    gl_FragColor.a = 1.0;
+    fragColor = noisyColor;
+    fragColor.a = 1.0;
 }

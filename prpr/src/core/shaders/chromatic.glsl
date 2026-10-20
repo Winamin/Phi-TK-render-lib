@@ -1,8 +1,8 @@
-#version 100
+#version 450 core
 // Adapted from https://godotshaders.com/shader/chromatic-abberation/
-precision mediump float;
 
-varying lowp vec2 uv;
+layout(location = 0) in vec2 uv;
+layout(location = 0) out vec4 fragColor;
 uniform sampler2D screenTexture;
 
 uniform float sampleCount; // %3% int 1..64
@@ -25,7 +25,7 @@ void main() {
     slice = max(slice, 0.0);
     sum += slice;
     vec2 slice_offset = (t - 1.0) * power * offset;
-    c += slice * texture2D(screenTexture, uv + slice_offset).rgb;
+    c += slice * texture(screenTexture, uv + slice_offset).rgb;
   }
-  gl_FragColor.rgb = c / sum;
+  fragColor.rgb = c / sum;
 }

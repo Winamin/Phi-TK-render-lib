@@ -1,7 +1,7 @@
-#version 100
-precision highp float;
+#version 450 core
 
-varying vec2 uv;
+layout(location = 0) in vec2 uv;
+layout(location = 0) out vec4 fragColor;
 
 uniform float time;
 uniform sampler2D screenTexture;
@@ -52,7 +52,7 @@ float randomPath(float y, float seed)
 
 void main()
 {
-    vec4 color = texture2D(screenTexture, uv);
+    vec4 color = texture(screenTexture, uv);
 
     float totalTime = time;
     float seedTime = floor(totalTime / flashDuration);
@@ -79,6 +79,6 @@ void main()
     lightning *= fade;
 
     vec4 lightningColor = vec4(1.0, 1.0, 1.0, lightning);
-    gl_FragColor = mix(color, lightningColor, lightning);
-	gl_FragColor.a = 1.0;
+    fragColor = mix(color, lightningColor, lightning);
+	fragColor.a = 1.0;
 }

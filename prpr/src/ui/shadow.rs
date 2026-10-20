@@ -88,17 +88,20 @@ pub fn rounded_rect<R>(ui: &mut Ui, r: Rect, radius: f32, f: impl FnOnce(&mut Ui
 }
 
 mod shader {
-    pub const VERTEX: &str = r#"#version 100
-attribute vec3 position;
-attribute vec2 texcoord;
-attribute vec4 color0;
+    pub const VERTEX: &str = r#"#version 450 core
+layout(location = 0) in vec3 position;
+layout(location = 1) in vec2 texcoord;
+layout(location = 2) in uvec4 color0;
 
-varying lowp vec4 color;
-varying lowp vec2 pos0;
-varying lowp vec2 uv;
+layout(set = 0, binding = 0) uniform Uniforms {
+    mat4 Projection;
+    mat4 Model;
+    vec4 _Time;
+};
 
-uniform mat4 Model;
-uniform mat4 Projection;
+layout(location = 0) out vec4 color;
+layout(location = 1) out vec2 pos0;
+layout(location = 2) out vec2 uv;
 
 void main() {
     gl_Position = Projection * Model * vec4(position, 1);
@@ -107,12 +110,23 @@ void main() {
     uv = texcoord;
 }"#;
 
-    pub const SHADOW_FRAGMENT: &str = r#"#version 100
+    pub const SHADOW_FRAGMENT: &str = r#"#version 450 core
 // Adapted from https://madebyevan.com/shaders/fast-rounded-rectangle-shadows/
-precision highp float;
 
-varying lowp vec4 color;
-varying lowp vec2 pos0;
+layout(location = 0) in vec4 color;
+layout(location = 1) in vec2 pos0;
+
+layout(set = 0, binding = 0) uniform Uniforms {
+    mat4 Projection;
+    mat4 Model;
+    vec4 _Time;
+    vec4 rect;
+    float elevation;
+    float radius;
+    float base;
+};
+
+layout(location = 0) out vec4 fragColor;
 
 // A standard gaussian function, used for weighting samples
 float gaussian(float x, float sigma) {
@@ -185,20 +199,24 @@ uniform highp float radius;
 uniform highp float base;
 
 void main() {
-  gl_FragColor = vec4(0.0, 0.0, 0.0, roundedBoxShadow(rect.xy, rect.zw, pos0, elevation, radius) * base);
+  fragColor = vec4(0.0, 0.0, 0.0, roundedBoxShadow(rect.xy, rect.zw, pos0, elevation, radius) * base);
 }"#;
 
-    pub const RR_FRAGMENT: &str = r#"#version 100
-precision highp float;
+    pub const RR_FRAGMENT: &str = r#"#version 450 core
+layout(location = 0) in vec4 color;
+layout(location = 1) in vec2 pos0;
+layout(location = 2) in vec2 uv;
 
-varying lowp vec4 color;
-varying lowp vec2 pos0;
-varying lowp vec2 uv;
+layout(set = 0, binding = 0) uniform Uniforms {
+    mat4 Projection;
+    mat4 Model;
+    vec4 _Time;
+    vec4 rect;
+    float radius;
+};
 
-uniform highp vec4 rect;
-uniform highp float radius;
-
-uniform sampler2D Texture;
+layout(set = 0, binding = 1) uniform sampler2D Texture;
+layout(location = 0) out vec4 fragColor;
 
 void main() {
   vec2 lower = rect.xy, upper = rect.zw, point = pos0;
@@ -218,7 +236,7 @@ void main() {
     * step(lower.y, point.y)
     * step(point.x, upper.x)
     * step(point.y, upper.y);
-  gl_FragColor = texture2D(Texture, uv) * color;
-  gl_FragColor.a *= factor;
+  fragColor = texture(Texture, uv) * color;
+  fragColor.a *= factor;
 }"#;
 }

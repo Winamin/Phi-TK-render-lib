@@ -1,7 +1,7 @@
-#version 100
-precision mediump float;
+#version 450 core
 
-varying vec2 uv;
+layout(location = 0) in vec2 uv;
+layout(location = 0) out vec4 fragColor;
 uniform sampler2D screenTexture;
 
 uniform float segments; // %6.0%
@@ -29,9 +29,9 @@ void main() {
     vec2 newUV = vec2(cos(theta), sin(theta)) * radius + center;
 	
 	// 读取纹理颜色
-    vec4 color = texture2D(screenTexture, newUV);
+    vec4 color = texture(screenTexture, newUV);
     
 	// 设置最终的颜色和透明度
-    gl_FragColor = color;
-    gl_FragColor.a = 1.0;
+    fragColor = color;
+    fragColor.a = 1.0;
 }

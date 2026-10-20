@@ -319,7 +319,16 @@ pub trait Scene {
         Ok(false)
     }
     fn update(&mut self, tm: &mut TimeManager) -> Result<()>;
-    fn render(&mut self, tm: &mut TimeManager, ui: &mut Ui) -> Result<()>;
+    /// `target` is resolved by the render target chooser for **this** frame.
+    /// The video exporter rotates its offscreen targets every frame, so a scene
+    /// must render into the target it is handed here rather than the one it was
+    /// entered with.
+    fn render(
+        &mut self,
+        tm: &mut TimeManager,
+        ui: &mut Ui,
+        target: Option<RenderTarget>,
+    ) -> Result<()>;
     fn next_scene(&mut self, _tm: &mut TimeManager) -> NextScene {
         NextScene::None
     }
@@ -482,9 +491,13 @@ impl Main {
         if self.paused {
             return Ok(());
         }
+        // Ask for the target on every frame: an exporter may rotate its
+        // offscreen targets, and a scene must not keep drawing into the one it
+        // happened to be entered with.
+        let target = self.target_chooser.choose();
         let mut ui = Ui::new(painter, self.viewport);
         ui.set_touches(self.touches.take().unwrap());
-        ui.scope(|ui| self.scenes.last_mut().unwrap().render(&mut self.tm, ui))?;
+        ui.scope(|ui| self.scenes.last_mut().unwrap().render(&mut self.tm, ui, target))?;
         if self.top_level {
             push_camera_state();
             set_camera(&ui.camera());

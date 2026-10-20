@@ -1,7 +1,7 @@
-#version 100
-precision mediump float;
+#version 450 core
 
-varying vec2 uv; // 替换 v_texCoord
+layout(location = 0) in vec2 uv; // 替换 v_texCoord
+layout(location = 0) out vec4 fragColor;
 uniform sampler2D screenTexture; // 替换 u_texture 和 CC_Texture0
 uniform float progress; // %0.5%
 uniform float power; // %10.0%
@@ -34,9 +34,9 @@ void main()
     vec2 finalUV = center + twistedCoord;
     
     // 从屏幕材质中采样颜色
-    vec4 color = texture2D(screenTexture, finalUV);
+    vec4 color = texture(screenTexture, finalUV);
     
     // 设置输出颜色，保持透明度为 1.0
-    gl_FragColor = color;
-    gl_FragColor.a = 1.0;
+    fragColor = color;
+    fragColor.a = 1.0;
 }

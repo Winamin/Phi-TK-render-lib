@@ -1,8 +1,8 @@
-#version 100
+#version 450 core
 // Adapted from https://godotshaders.com/shader/pixelate-2/
-precision mediump float;
 
-varying lowp vec2 uv;
+layout(location = 0) in vec2 uv;
+layout(location = 0) out vec4 fragColor;
 uniform vec2 screenSize;
 uniform sampler2D screenTexture;
 
@@ -12,5 +12,5 @@ void main() {
   vec2 factor = screenSize / size;
   float x = floor(uv.x * factor.x + 0.5) / factor.x;
   float y = floor(uv.y * factor.y + 0.5) / factor.y;
-  gl_FragColor = texture2D(screenTexture, vec2(x, y));
+  fragColor = texture(screenTexture, vec2(x, y));
 }

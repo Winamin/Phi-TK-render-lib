@@ -7,7 +7,6 @@ use crate::{
 use serde::Serialize;
 use serde::Deserialize;
 use macroquad::prelude::*;
-use macroquad::miniquad::gl::GLuint;
 use std::sync::atomic::{AtomicU32, Ordering};
 use once_cell::sync::Lazy;
 
@@ -28,10 +27,8 @@ static HAND_COLORS: Lazy<[Color; 2]> = Lazy::new(|| [
     Color::new(1.0, 0.6, 0.7, 1.0),  // Right
 ]);
 
-// Texture GL internal id is a plain field read (`miniquad::Texture::gl_internal_id`
-// returns `self.texture`), so no caching layer is needed here.
 #[inline(always)]
-fn texture_gl_id(texture: &Texture2D) -> GLuint {
+fn texture_gl_id(texture: &Texture2D) -> u32 {
     texture.raw_miniquad_texture_handle().gl_internal_id()
 }
 
@@ -86,7 +83,7 @@ impl NoteKind {
 
 #[derive(Clone,Copy)]
 pub struct NoteInstance {
-    pub texture_id: u32,      // texture.gl_internal_id()
+    pub texture_id: u32,
     pub order: i8,
     pub vertices: [Vertex; 4],
 }

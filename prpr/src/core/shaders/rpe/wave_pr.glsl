@@ -1,7 +1,7 @@
-#version 100
-precision mediump float;
+#version 450 core
 
-varying vec2 uv;
+layout(location = 0) in vec2 uv;
+layout(location = 0) out vec4 fragColor;
 uniform sampler2D screenTexture;
 
 uniform float time;
@@ -15,7 +15,7 @@ const vec2 rectMax = vec2(1.0, 1.0);
 vec4 getcolor(vec2 uv)
 {
 	if (uv.x >= rectMin.x && uv.x <= rectMax.x && uv.y >= rectMin.y && uv.y <= rectMax.y)
-		return texture2D(screenTexture, uv);
+		return texture(screenTexture, uv);
 	else
 		return vec4(0, 0, 0, 1);
 }
@@ -28,6 +28,6 @@ void main() {
     // 将波动效果应用到纹理坐标上，使其沿给定方向和速度波动
     vec2 distortedTexCoord = vec2(uv.x + wave, uv.y + wave);
 
-    gl_FragColor = getcolor(distortedTexCoord);
-	gl_FragColor.a = 1.0;
+    fragColor = getcolor(distortedTexCoord);
+	fragColor.a = 1.0;
 }

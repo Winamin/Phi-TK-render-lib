@@ -1,7 +1,7 @@
-#version 100
-precision highp float;
+#version 450 core
 
-varying vec2 uv;
+layout(location = 0) in vec2 uv;
+layout(location = 0) out vec4 fragColor;
 
 uniform sampler2D screenTexture; // 屏幕材质
 uniform vec2 screenSize; // 屏幕大小
@@ -11,7 +11,7 @@ uniform float power; // %0.5%
 void main()
 {
     // 读取当前像素的颜色
-    vec4 color = texture2D(screenTexture, uv);
+    vec4 color = texture(screenTexture, uv);
     
     // 获取当前像素的y坐标（范围是0到1）
     float scanline = sin((uv.y * 800.0 + time * 5.0) * 3.14159 * 2.0); // 模拟扫描线
@@ -21,6 +21,6 @@ void main()
     color.rgb *= intensity;
     
     // 设置透明度
-    gl_FragColor = color;
-    gl_FragColor.a = 1.0;
+    fragColor = color;
+    fragColor.a = 1.0;
 }

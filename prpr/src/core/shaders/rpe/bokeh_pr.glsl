@@ -1,7 +1,7 @@
-#version 100
-precision highp float;
+#version 450 core
 
-varying vec2 uv;
+layout(location = 0) in vec2 uv;
+layout(location = 0) out vec4 fragColor;
 uniform sampler2D screenTexture;
 
 uniform float blurRadius; // %10.0%
@@ -31,7 +31,7 @@ const vec2 rectMax = vec2(1.0, 1.0);
 vec4 getcolor(vec2 uv)
 {
 	if (uv.x >= rectMin.x && uv.x <= rectMax.x && uv.y >= rectMin.y && uv.y <= rectMax.y)
-		return texture2D(screenTexture, uv);
+		return texture(screenTexture, uv);
 	else
 		return vec4(0.0, 0.0, 0.0, 1.0);
 }
@@ -60,6 +60,6 @@ vec4 blur(vec2 uv, float radius) {
 void main() {
     float adaptiveBlurRadius = computeBlurRadius(uv); // 计算自适应模糊半径
     vec4 blurredColor = blur(uv, adaptiveBlurRadius); // 使用自适应模糊
-    gl_FragColor = blurredColor;
-	gl_FragColor.a = 1.0;
+    fragColor = blurredColor;
+	fragColor.a = 1.0;
 }

@@ -1,8 +1,8 @@
-#version 100
+#version 450 core
 // Adapted from https://www.shadertoy.com/view/4s2GRR
-precision mediump float;
 
-varying lowp vec2 uv;
+layout(location = 0) in vec2 uv;
+layout(location = 0) out vec4 fragColor;
 uniform vec2 screenSize;
 uniform sampler2D screenTexture;
 
@@ -25,5 +25,5 @@ void main() {
   else
     nuv = m + normalize(d) * atan(r * -new_power * 10.0) * bind / atan(-new_power * bind * 10.0);
 
-  gl_FragColor = texture2D(screenTexture, vec2(nuv.x, nuv.y * aspect));
+  fragColor = texture(screenTexture, vec2(nuv.x, nuv.y * aspect));
 }

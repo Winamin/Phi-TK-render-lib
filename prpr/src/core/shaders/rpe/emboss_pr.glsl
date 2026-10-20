@@ -1,7 +1,7 @@
-#version 100
-precision mediump float;
+#version 450 core
 
-varying vec2 uv; // 材质 UV
+layout(location = 0) in vec2 uv; // 材质 UV
+layout(location = 0) out vec4 fragColor;
 uniform sampler2D screenTexture; // 屏幕材质
 uniform vec2 screenSize;
 uniform float strength; // %1.0%
@@ -9,14 +9,14 @@ uniform float time; // 时间，以秒为单位
 
 vec4 getcolor(vec2 uv)
 {
-    return texture2D(screenTexture, uv);
+    return texture(screenTexture, uv);
 }
 
 void main()
 {
     // 获取当前 UV 坐标
     vec2 uv = uv;
-    vec4 originalColor = texture2D(screenTexture, uv);
+    vec4 originalColor = texture(screenTexture, uv);
     
     // 获取纹理像素的偏移量
     vec2 offset = vec2(1.0 / screenSize.x, 1.0 / screenSize.y);
@@ -38,6 +38,6 @@ void main()
     vec4 finalColor = mix(originalColor, embossColor, strength);
     
     // 设置最终颜色
-    gl_FragColor = finalColor;
-    gl_FragColor.a = 1.0;
+    fragColor = finalColor;
+    fragColor.a = 1.0;
 }

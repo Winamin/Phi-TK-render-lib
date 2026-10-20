@@ -838,12 +838,12 @@ impl Emitter {
 mod shader {
     use super::*;
 
-    pub const VERTEX: &str = r#"#version 100
+    pub const VERTEX: &str = r#"#version 450 core
 	#define DEF_VERTEX_ATTRIBUTES
 	#include "particles.glsl"
 
-	varying lowp vec2 texcoord;
-	varying lowp vec4 color;
+	layout(location = 0) out vec2 texcoord;
+	layout(location = 1) out vec4 color;
 
 	void main() {
 		gl_Position = particle_transform_vertex();
@@ -852,20 +852,27 @@ mod shader {
 	}
 	"#;
 
-    pub const FRAGMENT: &str = r#"#version 100
-	varying lowp vec2 texcoord;
-	varying lowp vec4 color;
+    pub const FRAGMENT: &str = r#"#version 450 core
+	layout(location = 0) in vec2 texcoord;
+	layout(location = 1) in vec4 color;
 
-	uniform sampler2D texture;
+	layout(set = 0, binding = 0) uniform Uniforms {
+		mat4 _mvp;
+		float _local_coords;
+		vec3 _emitter_position;
+	};
+
+	layout(set = 0, binding = 1) uniform sampler2D tex;
+	layout(location = 0) out vec4 fragColor;
 
 	void main() {
-		gl_FragColor = texture2D(texture, texcoord) * color;
+		fragColor = texture(tex, texcoord) * color;
 	}
 	"#;
 
     pub fn meta() -> ShaderMeta {
         ShaderMeta {
-            images: vec!["texture".to_string()],
+            images: vec!["tex".to_string()],
             uniforms: UniformBlockLayout {
                 uniforms: vec![
                     UniformDesc::new("_mvp", UniformType::Mat4),
@@ -887,11 +894,11 @@ mod shader {
 mod post_processing_shader {
     use super::*;
 
-    pub const VERTEX: &str = r#"#version 100
-	attribute vec2 pos;
-	attribute vec2 uv;
+    pub const VERTEX: &str = r#"#version 450 core
+	layout(location = 0) in vec2 pos;
+	layout(location = 1) in vec2 uv;
 
-	varying lowp vec2 texcoord;
+	layout(location = 0) out vec2 texcoord;
 
 	void main() {
 		gl_Position = vec4(pos, 0, 1);
@@ -899,14 +906,13 @@ mod post_processing_shader {
 	}
 	"#;
 
-    pub const FRAGMENT: &str = r#"#version 100
-	precision lowp float;
-
-	varying vec2 texcoord;
-	uniform sampler2D tex;
+    pub const FRAGMENT: &str = r#"#version 450 core
+	layout(location = 0) in vec2 texcoord;
+	layout(set = 0, binding = 1) uniform sampler2D tex;
+	layout(location = 0) out vec4 fragColor;
 
 	void main() {
-		gl_FragColor = texture2D(tex, texcoord);
+		fragColor = texture(tex, texcoord);
 	}
 	"#;
 

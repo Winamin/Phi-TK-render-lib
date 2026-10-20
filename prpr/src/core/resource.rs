@@ -8,7 +8,7 @@ use crate::{
 };
 use anyhow::{bail, Context, Result};
 use macroquad::prelude::*;
-use macroquad::miniquad::{gl::{GLuint, GL_LINEAR}, Texture, TextureWrap};
+use macroquad::miniquad::{FilterMode, Texture, TextureWrap};
 use sasa::{AudioClip, AudioManager, Sfx};
 use serde::Deserialize;
 use std::{cell::RefCell, collections::BTreeMap, ops::DerefMut, path::Path, sync::atomic::AtomicU32};
@@ -205,7 +205,7 @@ impl ResourcePack {
     pub async fn load(fs: &mut dyn FileSystem) -> Result<Self> {
         macro_rules! load_tex {
             ($path:literal) => {
-                SafeTexture::from(image::load_from_memory(&fs.load_file($path).await.with_context(|| format!("Missing {}", $path))?)?).with_filter(GL_LINEAR)
+                SafeTexture::from(image::load_from_memory(&fs.load_file($path).await.with_context(|| format!("Missing {}", $path))?)?).with_filter(FilterMode::Linear)
             };
         }
         let info: ResPackInfo = serde_yaml::from_str(&String::from_utf8(fs.load_file("info.yml").await.context("Missing info.yml")?)?)?;
@@ -343,8 +343,8 @@ impl ParticleEmitter {
 }
 
 pub struct NoteBuffer {
-    map: BTreeMap<(i8, GLuint), Vec<(Vec<Vertex>, Vec<u16>)>>,
-    transient_keys: Vec<(i8, GLuint)>,
+    map: BTreeMap<(i8, u32), Vec<(Vec<Vertex>, Vec<u16>)>>,
+    transient_keys: Vec<(i8, u32)>,
 }
 
 impl Default for NoteBuffer {
@@ -357,7 +357,7 @@ impl Default for NoteBuffer {
 }
 
 impl NoteBuffer {
-    pub fn push(&mut self, key: (i8, GLuint), vertices: [Vertex; 4]) {
+    pub fn push(&mut self, key: (i8, u32), vertices: [Vertex; 4]) {
         let meshes = self.map.entry(key).or_default();
         if meshes.last().map_or(true, |it| it.0.len() + 4 > MAX_SIZE * 4) {
             meshes.push(Default::default());

@@ -1,7 +1,7 @@
-#version 100
-precision mediump float;
+#version 450 core
 
-varying vec2 uv; // 材质 UV
+layout(location = 0) in vec2 uv; // 材质 UV
+layout(location = 0) out vec4 fragColor;
 uniform sampler2D screenTexture; // 屏幕材质
 uniform float radius; // %0.01%
 uniform vec2 screenSize; // 屏幕大小
@@ -9,7 +9,7 @@ uniform float sampleCount; // %5%
 
 vec4 getcolor(vec2 uv)
 {
-    return texture2D(screenTexture, uv);
+    return texture(screenTexture, uv);
 }
 
 void main()
@@ -59,5 +59,5 @@ void main()
 
     // 将最多颜色与整体颜色混合，形成油画效果
     vec3 finalColor = mix(colorSum / float((2.0 * sampleCount + 1.0) * (2.0 * sampleCount + 1.0)), maxColor, 0.6);
-    gl_FragColor = vec4(finalColor, 1.0);
+    fragColor = vec4(finalColor, 1.0);
 }

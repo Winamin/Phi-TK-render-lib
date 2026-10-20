@@ -1,7 +1,7 @@
-#version 100
-precision highp float;
+#version 450 core
 
-varying vec2 uv;
+layout(location = 0) in vec2 uv;
+layout(location = 0) out vec4 fragColor;
 uniform sampler2D screenTexture;
 uniform float time;
 uniform vec2 screenSize;
@@ -19,7 +19,7 @@ float random(vec2 st) {
 // 模拟雪花飘落
 void main() {
     // 获取背景颜色
-    vec4 bgColor = texture2D(screenTexture, uv);
+    vec4 bgColor = texture(screenTexture, uv);
 
     // 初始化颜色
     vec4 snowColor = color; // 白色雪花，透明度为0表示未覆盖
@@ -54,10 +54,10 @@ void main() {
 
     if (cover == true) {
         // 将雪花叠加到背景图片上
-        gl_FragColor = mix(bgColor, snowColor, snowColor.a);
-        gl_FragColor.a = 1.0;
+        fragColor = mix(bgColor, snowColor, snowColor.a);
+        fragColor.a = 1.0;
     } else {
-        gl_FragColor = bgColor;
-        gl_FragColor.a = 1.0;
+        fragColor = bgColor;
+        fragColor.a = 1.0;
     }
 }

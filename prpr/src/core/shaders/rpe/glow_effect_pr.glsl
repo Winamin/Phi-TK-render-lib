@@ -1,7 +1,7 @@
-#version 100
-precision mediump float;
+#version 450 core
 
-varying vec2 uv; // 替换v_texCoord
+layout(location = 0) in vec2 uv; // 替换v_texCoord
+layout(location = 0) out vec4 fragColor;
 uniform sampler2D screenTexture; // 替换CC_Texture0和u_texture
 uniform vec2 screenSize; // 替换resolution
 uniform float time; // 替换u_time
@@ -10,7 +10,7 @@ uniform float intensity; // %0.6%
 uniform float threshold; // %0.3%
 
 vec4 getcolor(vec2 uv) {
-    return texture2D(screenTexture, uv);
+    return texture(screenTexture, uv);
 }
 
 float calculateLuminance(vec3 color) {
@@ -18,7 +18,7 @@ float calculateLuminance(vec3 color) {
 }
 
 void main() {
-    vec3 color = texture2D(screenTexture, uv).rgb; // 替换texture2D(CC_Texture0, uv)
+    vec3 color = texture(screenTexture, uv).rgb; // 替换texture(CC_Texture0, uv)
 
     float luminance = calculateLuminance(color);
 
@@ -38,5 +38,5 @@ void main() {
     
     vec3 finalColor = color + bloom;
     
-    gl_FragColor = vec4(finalColor, 1.0);
+    fragColor = vec4(finalColor, 1.0);
 }

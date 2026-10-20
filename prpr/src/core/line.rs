@@ -7,7 +7,7 @@ use crate::{
     info::ChartFormat,
 };
 use macroquad::prelude::*;
-use macroquad::miniquad::{RenderPass, Texture, TextureParams, TextureWrap, FilterMode, TextureFormat, PassAction};
+use macroquad::miniquad::{RenderPass, Texture, TextureParams, TextureWrap, FilterMode, MipmapFilter, TextureFormat, PassAction};
 use nalgebra::Rotation2;
 use serde::Deserialize;
 use std::cell::RefCell;
@@ -485,6 +485,7 @@ impl JudgeLine {
                                                 format: TextureFormat::RGBA8,
                                                 filter: FilterMode::Linear,
                                                 wrap: TextureWrap::Clamp,
+                                                mipmap_filter: MipmapFilter::None,
                                             },
                                         );
                                         guard.0 = Some(RenderPass::new(gl.quad_context, tex, None));

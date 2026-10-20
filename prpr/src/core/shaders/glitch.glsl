@@ -1,8 +1,8 @@
-#version 100
+#version 450 core
 // Adapted from https://godotshaders.com/shader/glitch-effect-shader/
-precision highp float;
 
-varying lowp vec2 uv;
+layout(location = 0) in vec2 uv;
+layout(location = 0) out vec4 fragColor;
 uniform sampler2D screenTexture;
 uniform float time;
 
@@ -26,16 +26,16 @@ void main() {
   vec2 fixed_uv = uv;
   fixed_uv.x += (random((my_trunc(uv.y * blockCount) / blockCount) + time) - 0.5) * power * enable_shift;
 
-  vec4 pixel_color = texture2D(screenTexture, fixed_uv);
+  vec4 pixel_color = texture(screenTexture, fixed_uv);
   pixel_color.r = mix(
     pixel_color.r,
-    texture2D(screenTexture, fixed_uv + vec2(colorRate, 0.0)).r,
+    texture(screenTexture, fixed_uv + vec2(colorRate, 0.0)).r,
     enable_shift
   );
   pixel_color.b = mix(
     pixel_color.b,
-    texture2D(screenTexture, fixed_uv + vec2(-colorRate, 0.0)).b,
+    texture(screenTexture, fixed_uv + vec2(-colorRate, 0.0)).b,
     enable_shift
   );
-  gl_FragColor = pixel_color;
+  fragColor = pixel_color;
 }

@@ -1,7 +1,7 @@
-#version 100
-precision highp float;
+#version 450 core
 
-varying vec2 uv; // 替换 v_texCoord
+layout(location = 0) in vec2 uv; // 替换 v_texCoord
+layout(location = 0) out vec4 fragColor;
 uniform sampler2D screenTexture; // 替换 u_texture 和 CC_Texture0
 uniform float time; // 替换 u_time
 uniform vec4 hologramColor; // %0.0, 1.0, 1.5, 1.0%
@@ -9,7 +9,7 @@ uniform vec2 screenSize; // 屏幕大小
 
 vec4 getcolor(vec2 uv)
 {
-    return texture2D(screenTexture, uv); // 替换 CC_Texture0
+    return texture(screenTexture, uv); // 替换 CC_Texture0
 }
 
 void main() {
@@ -34,6 +34,6 @@ void main() {
     color.rgb += noise * 0.05;
     
     // 输出最终效果
-    gl_FragColor = color;
-    gl_FragColor.a = 1.0;
+    fragColor = color;
+    fragColor.a = 1.0;
 }

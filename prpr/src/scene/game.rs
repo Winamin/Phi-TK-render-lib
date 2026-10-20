@@ -13,7 +13,7 @@ use crate::judge::{JudgeStatus, Judgement};
 use crate::{
     bin::{BinaryReader, BinaryWriter},
     config::{Config, Mods},
-    core::{copy_fbo, BadNote, Chart, ChartExtra, Effect, Point, Resource, UIElement, Vector},
+    core::{BadNote, Chart, ChartExtra, Effect, Point, Resource, UIElement, Vector},
     ext::{parse_time, screen_aspect, semi_white, RectExt, SafeTexture},
     fs::FileSystem,
     info::{ChartFormat, ChartInfo},
@@ -1844,7 +1844,13 @@ impl Scene for GameScene {
         Ok(())
     }
 
-    fn render(&mut self, tm: &mut TimeManager, ui: &mut Ui) -> Result<()> {
+    fn render(
+        &mut self,
+        tm: &mut TimeManager,
+        ui: &mut Ui,
+        target: Option<RenderTarget>,
+    ) -> Result<()> {
+        self.res.camera.render_target = target;
         let res = &mut self.res;
         let asp = ui.viewport.2 as f32 / ui.viewport.3 as f32;
 

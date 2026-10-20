@@ -1,18 +1,21 @@
 #ifdef DEF_VERTEX_ATTRIBUTES
-attribute vec3 in_attr_pos;
-attribute vec2 in_attr_uv;
-attribute vec4 in_attr_color;
-attribute vec4 in_attr_inst_pos;
-attribute vec4 in_attr_inst_uv;
-attribute vec4 in_attr_inst_data;
-attribute vec4 in_attr_inst_color;
-uniform mat4 _mvp;
-uniform float _local_coords;
-uniform vec3 _emitter_position;
+layout(location = 0) in vec3 in_attr_pos;
+layout(location = 1) in vec2 in_attr_uv;
+layout(location = 2) in vec4 in_attr_color;
+layout(location = 3) in vec4 in_attr_inst_pos;
+layout(location = 4) in vec4 in_attr_inst_uv;
+layout(location = 5) in vec4 in_attr_inst_data;
+layout(location = 6) in vec4 in_attr_inst_color;
 
-lowp mat2 rotate2d(float angle) {
-    highp float c = cos(angle);
-    highp float s = sin(angle);
+layout(set = 0, binding = 0) uniform Uniforms {
+    mat4 _mvp;
+    float _local_coords;
+    vec3 _emitter_position;
+};
+
+mat2 rotate2d(float angle) {
+    float c = cos(angle);
+    float s = sin(angle);
     return mat2(c, -s, s, c);
 }
 
@@ -31,10 +34,10 @@ vec2 particle_transform_uv() {
     return in_attr_uv * in_attr_inst_uv.zw + in_attr_inst_uv.xy;
 }
 
-highp float rand(vec2 co) {
+float rand(vec2 co) {
     // 保留必要的mod操作保证随机质量
-    highp float dt = dot(co, vec2(12.9898, 78.233));
-    highp float sn = mod(dt, 3.1415926535); // 使用π值避免精度问题
+    float dt = dot(co, vec2(12.9898, 78.233));
+    float sn = mod(dt, 3.1415926535); // 使用π值避免精度问题
 
     return fract(sin(sn) * 43758.5453);
 }

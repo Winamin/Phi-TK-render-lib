@@ -225,7 +225,12 @@ impl Scene for EndingScene {
         Ok(())
     }
 
-    fn render(&mut self, tm: &mut TimeManager, ui: &mut Ui) -> Result<()> {
+    fn render(
+        &mut self,
+        tm: &mut TimeManager,
+        ui: &mut Ui,
+        target: Option<RenderTarget>,
+    ) -> Result<()> {
 
         const START0: f32 = 0.0;
         const END0: f32 = 1.25;
@@ -242,7 +247,7 @@ impl Scene for EndingScene {
         let t = tm.now() as f32;
         let gl = unsafe { get_internal_gl() }.quad_gl;
         let res = &self.result;
-        cam.render_target = self.target;
+        cam.render_target = target;
         set_camera(&cam);
         draw_background(*self.background);
 

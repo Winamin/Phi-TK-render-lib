@@ -1,11 +1,11 @@
-#version 100
-precision mediump float;
+#version 450 core
 
 uniform sampler2D screenTexture;
 uniform float time;
 uniform vec2 screenSize;
 
-varying vec2 uv;
+layout(location = 0) in vec2 uv;
+layout(location = 0) out vec4 fragColor;
 
 uniform float speed; // %1.0%
 uniform float power; // %1.0%
@@ -22,9 +22,9 @@ void main() {
 
     float intensity = smoothstep(halfWidth, 0.0, dist) * power;
 
-    vec4 texColor = texture2D(screenTexture, uv);
+    vec4 texColor = texture(screenTexture, uv);
 
     vec3 resultColor = texColor.rgb + lightColor * intensity;
 
-    gl_FragColor = vec4(clamp(resultColor, 0.0, 1.0), 1.0);
+    fragColor = vec4(clamp(resultColor, 0.0, 1.0), 1.0);
 }

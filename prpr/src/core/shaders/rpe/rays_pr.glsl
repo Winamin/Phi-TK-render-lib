@@ -1,7 +1,7 @@
-#version 100
-precision mediump float;
+#version 450 core
 
-varying vec2 uv;
+layout(location = 0) in vec2 uv;
+layout(location = 0) out vec4 fragColor;
 
 uniform sampler2D screenTexture; // 场景纹理
 
@@ -16,7 +16,7 @@ const vec2 rectMax = vec2(1.0, 1.0);
 vec4 getcolor(vec2 uv)
 {
 	if (uv.x >= rectMin.x && uv.x <= rectMax.x && uv.y >= rectMin.y && uv.y <= rectMax.y)
-		return texture2D(screenTexture, uv);
+		return texture(screenTexture, uv);
 	else
 		return vec4(0.0, 0.0, 0.0, 1.0);
 }
@@ -25,7 +25,7 @@ vec4 getcolor(vec2 uv)
 void main()
 {
     // 从纹理中获取当前像素的颜色
-    vec4 color = texture2D(screenTexture, uv);
+    vec4 color = texture(screenTexture, uv);
 
     // 光源到当前像素的方向
     vec2 deltaTexCoord = uv - lightpos;
@@ -58,6 +58,6 @@ void main()
     // 将 God Rays 叠加到原始颜色上
     color += godRays * exposure;
 
-    gl_FragColor = color;
-	gl_FragColor.a = 1.0;
+    fragColor = color;
+	fragColor.a = 1.0;
 }

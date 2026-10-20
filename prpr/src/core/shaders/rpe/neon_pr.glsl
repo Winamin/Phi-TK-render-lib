@@ -1,7 +1,7 @@
-#version 100
-precision mediump float;
+#version 450 core
 
-varying vec2 uv;
+layout(location = 0) in vec2 uv;
+layout(location = 0) out vec4 fragColor;
 uniform sampler2D screenTexture;
 uniform vec2 screenSize;
 
@@ -10,7 +10,7 @@ uniform vec4 color; // %0.0, 1.0, 1.0, 1.0%
 
 vec4 getcolor(vec2 uv)
 {
-	return texture2D(screenTexture, uv);
+	return texture(screenTexture, uv);
 }
 
 void main()
@@ -41,7 +41,7 @@ void main()
     float sumX = 0.0;
     float sumY = 0.0;
 	
-	vec3 originalColor = texture2D(screenTexture, uv).rgb;
+	vec3 originalColor = texture(screenTexture, uv).rgb;
 
     for (int i = 0; i < 9; i++) {
         vec4 _color = getcolor(uv + texOffset[i]);
@@ -53,9 +53,9 @@ void main()
     float sobelValue = sqrt(sumX * sumX + sumY * sumY);
 	
 	if (sobelValue > threshold){
-		gl_FragColor = color;
+		fragColor = color;
 	}
 	else{
-		gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+		fragColor = vec4(0.0, 0.0, 0.0, 1.0);
 	}
 }

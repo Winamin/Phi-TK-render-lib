@@ -1,7 +1,7 @@
-#version 100
-precision highp float;
+#version 450 core
 
-varying vec2 uv; // 替换 v_texCoord
+layout(location = 0) in vec2 uv; // 替换 v_texCoord
+layout(location = 0) out vec4 fragColor;
 uniform sampler2D screenTexture; // 替换 u_texture 和 CC_Texture0
 uniform float progress; // %0.5%
 uniform vec4 burnColor; // %0.5, 0.5, 0.5, 1.0%
@@ -28,7 +28,7 @@ float noise(vec2 uv) {
 
 void main() {
     vec2 uv = uv; // 使用新的 uv 变量
-    vec4 color = texture2D(screenTexture, uv); // 替换 CC_Texture0 为 screenTexture
+    vec4 color = texture(screenTexture, uv); // 替换 CC_Texture0 为 screenTexture
 
     // 动态噪声，使用 uv 坐标和时间生成不规则噪声
     float burnNoise = noise(uv * 10.0 + vec2(time * 0.5, time * 0.5));
@@ -38,12 +38,12 @@ void main() {
 
     if (burnFactor < 0.0) {
         // 未燃烧部分，保留原始颜色
-        gl_FragColor = color;
-        gl_FragColor.a = 1.0;
+        fragColor = color;
+        fragColor.a = 1.0;
     } else {
         // 燃烧中的区域，渐变为燃烧颜色并逐渐透明
         vec4 burnedColor = mix(color, burnColor, burnFactor);
         burnedColor.a = mix(1.0, 0.0, burnFactor);
-        gl_FragColor = burnedColor;
+        fragColor = burnedColor;
     }
 }

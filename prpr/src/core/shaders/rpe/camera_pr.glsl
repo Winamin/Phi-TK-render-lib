@@ -1,7 +1,7 @@
-#version 100
-precision mediump float;
+#version 450 core
 
-varying vec2 uv; // 材质 UV，替换v_texCoord
+layout(location = 0) in vec2 uv; // 材质 UV，替换v_texCoord
+layout(location = 0) out vec4 fragColor;
 uniform vec2 screenSize; // 屏幕大小resolution
 uniform sampler2D screenTexture; // 屏幕材质，替换u_texture和CC_Texture0
 uniform float time; // 时间，以秒为单位，替换u_time
@@ -35,11 +35,11 @@ void main()
 	
 	if (rotatedCoord.x >= rectMin.x && rotatedCoord.x <= rectMax.x && rotatedCoord.y >= rectMin.y && rotatedCoord.y <= rectMax.y) 
 	{
-		gl_FragColor = texture2D(screenTexture, rotatedCoord);
-		gl_FragColor.a = 1.0;
+		fragColor = texture(screenTexture, rotatedCoord);
+		fragColor.a = 1.0;
 	}
 	else
 	{
-		gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+		fragColor = vec4(0.0, 0.0, 0.0, 1.0);
 	}
 }

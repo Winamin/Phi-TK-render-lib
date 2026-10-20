@@ -143,7 +143,12 @@ impl Scene for LoadingScene {
         Ok(())
     }
 
-    fn render(&mut self, tm: &mut TimeManager, ui: &mut Ui) -> Result<()> {
+    fn render(
+        &mut self,
+        tm: &mut TimeManager,
+        ui: &mut Ui,
+        target: Option<RenderTarget>,
+    ) -> Result<()> {
         let cam = ui.camera();
         let asp = -cam.zoom.y;
         let top = 1. / asp;
@@ -152,7 +157,7 @@ impl Scene for LoadingScene {
         let gl = intern.quad_gl;
         set_camera(&Camera2D {
             zoom: vec2(1., -asp),
-            render_target: self.target,
+            render_target: target,
             ..Default::default()
         });
 

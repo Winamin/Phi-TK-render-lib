@@ -1,7 +1,7 @@
-#version 100
-precision highp float;
+#version 450 core
 
-varying vec2 uv;
+layout(location = 0) in vec2 uv;
+layout(location = 0) out vec4 fragColor;
 uniform sampler2D screenTexture;
 uniform float time;
 
@@ -17,7 +17,7 @@ const float flickerFrequency = 0.0;  // Flicker frequency
 
 vec4 getcolor(vec2 uv)
 {
-	return texture2D(screenTexture, uv);
+	return texture(screenTexture, uv);
 }
 // Generate dynamic noise for TV static
 float dynamicNoise(vec2 uv, float time)
@@ -51,7 +51,7 @@ float screenFlicker(float time)
 
 void main()
 {
-	vec4 color = texture2D(screenTexture, uv);
+	vec4 color = texture(screenTexture, uv);
   
     // Apply chromatic aberration
     vec3 colorWithCA = chromaticAberration(uv);
@@ -87,5 +87,5 @@ void main()
         result = mix(result, vec3(0.0), 0.2);
     
     // Apply final color
-    gl_FragColor = vec4(result, 1.0);
+    fragColor = vec4(result, 1.0);
 }
