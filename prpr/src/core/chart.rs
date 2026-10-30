@@ -1,9 +1,10 @@
 use super::{BpmList, Effect, JudgeLine, JudgeLineKind, Matrix, Resource, UIElement, Vector, Video};
-use crate::{fs::FileSystem, judge::JudgeStatus, ui::Ui};
+use crate::{ext::{spawn_task, SafeTexture}, fs::FileSystem, judge::JudgeStatus, ui::Ui};
 use anyhow::{Context, Result};
+use futures_util::{stream::FuturesUnordered, StreamExt};
 use macroquad::prelude::*;
 use once_cell::sync::Lazy;
-use std::cell::RefCell;
+use std::{cell::RefCell, collections::{HashMap, HashSet}};
 use tracing::warn;
 
 pub(crate) static RENDER_POOL: Lazy<rayon::ThreadPool> = Lazy::new(|| {
@@ -108,9 +109,45 @@ impl Chart {
     }
 
     pub async fn load_textures(&mut self, fs: &mut dyn FileSystem) -> Result<()> {
+        let mut textures: HashMap<String, SafeTexture> = HashMap::new();
+        for line in &self.lines {
+            if let JudgeLineKind::Texture(texture, path) = &line.kind {
+                if texture.width() > 0.0 && texture.height() > 0.0 {
+                    textures.entry(path.clone()).or_insert_with(|| texture.clone());
+                }
+            }
+        }
+        let mut seen = HashSet::new();
+        let paths: Vec<_> = self.lines.iter().filter_map(|line| {
+            if let JudgeLineKind::Texture(_, path) = &line.kind {
+                (!textures.contains_key(path) && seen.insert(path.clone())).then(|| path.clone())
+            } else { None }
+        }).collect();
+        let mut pending = FuturesUnordered::new();
+        let limit = num_cpus::get_physical().clamp(1, 8);
+        for path in paths {
+            let data = fs.load_file(&path).await.with_context(|| format!("failed to load illustration {path}"))?;
+            pending.push(async move {
+                let context = path.clone();
+                let image = spawn_task(move || {
+                    let image = image::load_from_memory(&data)?.into_rgba8();
+                    anyhow::ensure!(image.width() <= u16::MAX as u32 && image.height() <= u16::MAX as u32, "texture dimensions exceed u16");
+                    Ok(image)
+                }).await.with_context(|| format!("failed to decode illustration {context}"))?;
+                Ok::<_, anyhow::Error>((path, image))
+            });
+            if pending.len() >= limit {
+                let (path, image) = pending.next().await.unwrap()?;
+                textures.insert(path, Texture2D::from_rgba8(image.width() as _, image.height() as _, image.as_raw()).into());
+            }
+        }
+        while let Some(result) = pending.next().await {
+            let (path, image) = result?;
+            textures.insert(path, Texture2D::from_rgba8(image.width() as _, image.height() as _, image.as_raw()).into());
+        }
         for line in &mut self.lines {
-            if let JudgeLineKind::Texture(tex, path) = &mut line.kind {
-                *tex = image::load_from_memory(&fs.load_file(path).await.with_context(|| format!("failed to load illustration {path}"))?)?.into();
+            if let JudgeLineKind::Texture(texture, path) = &mut line.kind {
+                *texture = textures[path].clone();
             }
         }
         Ok(())
