@@ -233,6 +233,14 @@ pub struct TextPainter {
 }
 
 impl TextPainter {
+    pub(crate) fn font(&self) -> FontArc {
+        self.brush.fonts()[0].clone()
+    }
+
+    pub(crate) fn texture_limit(&self) -> u32 {
+        *TEXTURE_DIM
+    }
+
     pub fn new(font: FontArc) -> Self {
         let mut brush = GlyphBrushBuilder::using_font(font).build();
         let dim = INITIAL_CACHE_DIM.min(*TEXTURE_DIM);
@@ -332,16 +340,117 @@ impl TextPainter {
     }
 
     fn redraw(&self) {
-        let gl = unsafe { get_internal_gl() }.quad_gl;
-        gl.texture(Some(self.cache_texture));
-        for vertices in self.vertices_buffer.chunks_exact(4) {
-            gl.geometry(vertices, &[0, 2, 3, 0, 1, 3]);
-        }
+        draw_text_vertices(Some(self.cache_texture), &self.vertices_buffer);
     }
+
 }
 
 impl Drop for TextPainter {
     fn drop(&mut self) {
         self.cache_texture.delete();
+    }
+}
+
+pub(crate) struct TextRenderBuffer {
+    brush: GlyphBrush<[Vertex; 4]>,
+    text: String,
+    scale: f32,
+    pub vertices: Vec<Vertex>,
+    pub updates: Vec<(u32, u32, u32, u32, Vec<u8>)>,
+    pub dimensions: (u32, u32),
+    pub offset: Vector,
+    pub pixel_scale: f32,
+}
+
+impl TextRenderBuffer {
+    pub fn matches_font(&self, font: &FontArc) -> bool {
+        std::ptr::eq(self.brush.fonts()[0].font_data(), font.font_data())
+    }
+
+    pub fn new(font: FontArc, limit: u32) -> Self {
+        let dim = INITIAL_CACHE_DIM.min(limit);
+        let mut brush = GlyphBrushBuilder::using_font(font).build();
+        brush.resize_texture(dim, dim);
+        Self {
+            brush,
+            text: String::new(),
+            scale: -1.0,
+            vertices: Vec::new(),
+            updates: Vec::new(),
+            dimensions: (dim, dim),
+            offset: Vector::zeros(),
+            pixel_scale: 0.0,
+        }
+    }
+
+    pub fn prepare(&mut self, text: &str, width: i32, limit: u32) {
+        self.updates.clear();
+        let scale = 0.04 * width as f32;
+        if self.text == text && self.scale == scale {
+            return;
+        }
+        self.text.clear();
+        self.text.push_str(text);
+        self.scale = scale;
+        self.pixel_scale = 2.0 / width as f32;
+        let section = Section::new().with_layout(Layout::default_single_line()).add_text(Text::new(text).with_scale(scale).with_color(WHITE));
+        let bound = self.brush.glyph_bounds(&section).unwrap_or_default();
+        let font = self.brush.fonts()[0].as_scaled(scale);
+        let height = bound.height() + text.chars().take_while(|it| *it == '\n').count() as f32 * font.line_gap() * 3.0 + font.descent();
+        self.offset = Vector::new(-bound.width() * self.pixel_scale * 0.5, -height * self.pixel_scale * 0.5);
+        self.brush.queue(section);
+        loop {
+            let result = self.brush.process_queued(
+                |rect, data| {
+                    let mut rgba = Vec::with_capacity(data.len() * 4);
+                    for &alpha in data {
+                        rgba.extend_from_slice(&[255, 255, 255, alpha]);
+                    }
+                    self.updates.push((rect.min[0], rect.min[1], rect.width(), rect.height(), rgba));
+                },
+                |vertex| {
+                    let pos = vertex.pixel_coords;
+                    let uv = vertex.tex_coords;
+                    [
+                        Vertex::new(pos.min.x, pos.min.y, 0., uv.min.x, uv.min.y, WHITE),
+                        Vertex::new(pos.max.x, pos.min.y, 0., uv.max.x, uv.min.y, WHITE),
+                        Vertex::new(pos.min.x, pos.max.y, 0., uv.min.x, uv.max.y, WHITE),
+                        Vertex::new(pos.max.x, pos.max.y, 0., uv.max.x, uv.max.y, WHITE),
+                    ]
+                },
+            );
+            match result {
+                Err(BrushError::TextureTooSmall { suggested }) => {
+                    let suggested = (suggested.0.min(limit), suggested.1.min(limit));
+                    self.updates.clear();
+                    if suggested == self.brush.texture_dimensions() {
+                        self.vertices.clear();
+                        self.scale = -1.0;
+                        break;
+                    }
+                    self.brush.resize_texture(suggested.0, suggested.1);
+                    self.dimensions = suggested;
+                }
+                Ok(BrushAction::Draw(vertices)) => {
+                    self.vertices.clear();
+                    self.vertices.extend(vertices.into_iter().flatten());
+                    break;
+                }
+                Ok(BrushAction::ReDraw) => break,
+            }
+        }
+    }
+}
+
+pub(crate) fn draw_text_vertices(texture: Option<Texture2D>, vertices: &[Vertex]) {
+    static INDICES: Lazy<Vec<u16>> = Lazy::new(|| (0..256u16).flat_map(|it| {
+        let i = it * 4;
+        [i, i + 2, i + 3, i, i + 1, i + 3]
+    }).collect());
+    let gl = unsafe { get_internal_gl() }.quad_gl;
+    gl.texture(texture);
+    gl.draw_mode(DrawMode::Triangles);
+    for chunk in vertices.chunks(1024) {
+        gl.geometry(chunk, &INDICES[..chunk.len() / 4 * 6]);
     }
 }

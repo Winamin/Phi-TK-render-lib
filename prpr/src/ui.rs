@@ -18,6 +18,7 @@ pub use shadow::*;
 
 mod text;
 pub use text::{DrawText, TextPainter};
+pub(crate) use text::{draw_text_vertices, TextRenderBuffer};
 
 pub use glyph_brush::ab_glyph::FontArc;
 
