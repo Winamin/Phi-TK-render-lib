@@ -342,52 +342,50 @@ impl ParticleEmitter {
     }
 }
 
+#[derive(Default)]
 pub struct NoteBuffer {
-    map: BTreeMap<(i8, u32), Vec<(Vec<Vertex>, Vec<u16>)>>,
-    transient_keys: Vec<(i8, u32)>,
-}
-
-impl Default for NoteBuffer {
-    fn default() -> Self {
-        Self {
-            map: BTreeMap::new(),
-            transient_keys: Vec::with_capacity(64),
-        }
-    }
+    map: BTreeMap<(i8, u32), Vec<Vertex>>,
 }
 
 impl NoteBuffer {
     pub fn push(&mut self, key: (i8, u32), vertices: [Vertex; 4]) {
-        let meshes = self.map.entry(key).or_default();
-        if meshes.last().map_or(true, |it| it.0.len() + 4 > MAX_SIZE * 4) {
-            meshes.push(Default::default());
+        self.map.entry(key).or_default().extend_from_slice(&vertices);
+    }
+
+    pub(crate) fn clear(&mut self) {
+        for vertices in self.map.values_mut() {
+            vertices.clear();
         }
-        let last = meshes.last_mut().unwrap();
-        let i = last.0.len() as u16;
-        last.0.extend_from_slice(&vertices);
-        last.1.extend_from_slice(&[i, i + 1, i + 2, i, i + 2, i + 3]);
+    }
+
+    pub(crate) fn append(&mut self, other: &Self) {
+        for (&key, vertices) in &other.map {
+            if !vertices.is_empty() {
+                self.map.entry(key).or_default().extend_from_slice(vertices);
+            }
+        }
     }
 
     pub fn draw_all(&mut self) {
+        static INDICES: once_cell::sync::Lazy<Vec<u16>> = once_cell::sync::Lazy::new(|| {
+            (0..DRAWCALL_QUADS as u16).flat_map(|it| {
+                let i = it * 4;
+                [i, i + 1, i + 2, i, i + 2, i + 3]
+            }).collect()
+        });
         let mut gl = unsafe { get_internal_gl() };
         gl.flush();
         let gl = gl.quad_gl;
         gl.draw_mode(DrawMode::Triangles);
-        
-        // Reuse transient_keys buffer to avoid per-frame allocation
-        self.transient_keys.clear();
-        self.transient_keys.extend(self.map.keys().copied());
-        
-        for key in self.transient_keys.iter() {
-            let (_, tex_id) = *key;
-            if let Some(meshes) = self.map.get_mut(key) {
-                if meshes.is_empty() { continue; }
-                gl.texture(Some(Texture2D::from_miniquad_texture(unsafe { Texture::from_raw_id(tex_id, miniquad::TextureFormat::RGBA8) })));
-                for mesh in meshes.iter() {
-                    gl.geometry(&mesh.0, &mesh.1);
-                }
-                meshes.clear();
+        for (&(_, tex_id), vertices) in &mut self.map {
+            if vertices.is_empty() {
+                continue;
             }
+            gl.texture(Some(Texture2D::from_miniquad_texture(unsafe { Texture::from_raw_id(tex_id, miniquad::TextureFormat::RGBA8) })));
+            for chunk in vertices.chunks(DRAWCALL_QUADS * 4) {
+                gl.geometry(chunk, &INDICES[..chunk.len() / 4 * 6]);
+            }
+            vertices.clear();
         }
     }
 }
