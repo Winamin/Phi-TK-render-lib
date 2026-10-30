@@ -11,7 +11,7 @@ use super::{
 use crate::core::NoteKind;
 use crate::judge::{JudgeStatus, Judgement};
 use crate::{
-    bin::{BinaryReader, BinaryWriter},
+    bin::BinaryReader,
     config::{Config, Mods},
     core::{BadNote, Chart, ChartExtra, Effect, Point, Resource, UIElement, Vector},
     ext::{parse_time, screen_aspect, semi_white, RectExt, SafeTexture},
@@ -339,8 +339,6 @@ pub struct GameScene {
     pub judge: Judge,
     pub gl: InternalGlContext<'static>,
     player: Option<BasicPlayer>,
-    chart_bytes: Vec<u8>,
-    chart_format: ChartFormat,
     info_offset: f32,
     effects: Vec<Effect>,
 
@@ -446,7 +444,7 @@ impl GameScene {
         };
         let bytes = Self::load_chart_bytes(fs, info).await.context("Failed to load chart")?;
         let format = info.format.clone().unwrap_or_else(|| {
-            if let Ok(text) = String::from_utf8(bytes.clone()) {
+            if let Ok(text) = std::str::from_utf8(&bytes) {
                 if text.starts_with('{') {
                     if text.contains("\"META\"") {
                         ChartFormat::Rpe
@@ -638,7 +636,10 @@ impl GameScene {
             }
             _ => {}
         }
-        let (mut chart, chart_bytes, chart_format) = Self::load_chart(fs.deref_mut(), &info).await?;
+        // The raw chart bytes are only needed for format detection and parsing.
+        // Keep them out of `GameScene`: RPE files can be several MB, while the
+        // parsed `Chart` already holds everything needed during gameplay.
+        let (mut chart, _, chart_format) = Self::load_chart(fs.deref_mut(), &info).await?;
         let effects = std::mem::take(&mut chart.extra.global_effects);
         if config.fxaa {
             chart
@@ -685,8 +686,6 @@ impl GameScene {
             judge,
             gl: unsafe { get_internal_gl() },
             player,
-            chart_bytes,
-            chart_format,
             effects,
             info_offset,
 
