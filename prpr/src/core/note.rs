@@ -7,7 +7,7 @@ use crate::{
 use serde::Serialize;
 use serde::Deserialize;
 use macroquad::prelude::*;
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::{cell::RefCell, ops::Deref, sync::atomic::{AtomicU32, Ordering}};
 use once_cell::sync::Lazy;
 
 //const HOLD_PARTICLE_INTERVAL: f32 = 0.15;
@@ -30,6 +30,26 @@ static HAND_COLORS: Lazy<[Color; 2]> = Lazy::new(|| [
 #[inline(always)]
 fn texture_gl_id(texture: &Texture2D) -> u32 {
     texture.raw_miniquad_texture_handle().gl_internal_id()
+}
+
+#[inline(always)]
+fn transform_quad(model: &Matrix, points: [Point; 4]) -> [Point; 4] {
+    #[cfg(target_arch = "x86_64")]
+    if model.m31 == 0. && model.m32 == 0. && model.m33 == 1. {
+        unsafe {
+            use std::arch::x86_64::{_mm_add_ps, _mm_mul_ps, _mm_set_ps, _mm_set1_ps, _mm_storeu_ps};
+            let x = _mm_set_ps(points[3].x, points[2].x, points[1].x, points[0].x);
+            let y = _mm_set_ps(points[3].y, points[2].y, points[1].y, points[0].y);
+            let tx = _mm_add_ps(_mm_add_ps(_mm_mul_ps(x, _mm_set1_ps(model.m11)), _mm_mul_ps(y, _mm_set1_ps(model.m12))), _mm_set1_ps(model.m13));
+            let ty = _mm_add_ps(_mm_add_ps(_mm_mul_ps(x, _mm_set1_ps(model.m21)), _mm_mul_ps(y, _mm_set1_ps(model.m22))), _mm_set1_ps(model.m23));
+            let mut xs = [0.; 4];
+            let mut ys = [0.; 4];
+            _mm_storeu_ps(xs.as_mut_ptr(), tx);
+            _mm_storeu_ps(ys.as_mut_ptr(), ty);
+            return std::array::from_fn(|i| Point::new(xs[i], ys[i]));
+        }
+    }
+    points.map(|pt| model.transform_point(&pt))
 }
 
 
@@ -104,6 +124,66 @@ pub struct Note {
     pub fake: bool,
     pub judge: JudgeStatus,
     pub format: bool,
+}
+
+pub(crate) struct RenderPack<'a> {
+    pub info: &'a super::ResPackInfo,
+    pub note_style: &'a super::NoteStyle,
+    pub note_style_mh: &'a super::NoteStyle,
+}
+
+pub(crate) struct RenderFrame<'a> {
+    pub time: f32,
+    pub config: &'a crate::config::Config,
+    pub res_pack: RenderPack<'a>,
+    pub aspect_ratio: f32,
+    pub inv_aspect_ratio: f32,
+    pub chart_ratio_inv: f32,
+    pub note_width: f32,
+    pub alpha: f32,
+    pub judge_line_color: Color,
+    pub line_length: f32,
+    pub loading_progress: f32,
+    pub chart_format_matches: bool,
+}
+
+impl<'a> RenderFrame<'a> {
+    pub fn new(res: &'a Resource) -> Self {
+        Self {
+            time: res.time,
+            config: &res.config,
+            res_pack: RenderPack { info: &res.res_pack.info, note_style: &res.res_pack.note_style, note_style_mh: &res.res_pack.note_style_mh },
+            aspect_ratio: res.aspect_ratio,
+            inv_aspect_ratio: res.inv_aspect_ratio,
+            chart_ratio_inv: res.chart_ratio_inv,
+            note_width: res.note_width,
+            alpha: res.alpha,
+            judge_line_color: res.judge_line_color,
+            line_length: res.info.line_length,
+            loading_progress: res.loading_progress,
+            chart_format_matches: matches!(res.chart_format, crate::info::ChartFormat::Pgr | crate::info::ChartFormat::Rpe),
+        }
+    }
+}
+
+pub(crate) struct NoteRenderContext<'a, 'b> {
+    pub frame: &'a RenderFrame<'b>,
+    pub model: Matrix,
+    pub note_buffer: &'a RefCell<super::resource::NoteBuffer>,
+}
+
+impl<'a, 'b> Deref for NoteRenderContext<'a, 'b> {
+    type Target = RenderFrame<'b>;
+
+    fn deref(&self) -> &Self::Target {
+        self.frame
+    }
+}
+
+impl NoteRenderContext<'_, '_> {
+    fn model(&self) -> Matrix {
+        self.model
+    }
 }
 
 pub struct RenderConfig<'a>
@@ -233,9 +313,14 @@ impl Note {
 
     pub fn update(&mut self, res: &mut Resource, parent_rot: f32, parent_tr: &Matrix, ctrl_obj: &mut CtrlObject, line_height: f32, bpm_list: &BpmList, index: usize) {
         self.object.set_time(res.time);
-        //if matches!(self.judge, JudgeStatus::Hold(..)) {
-        //    self.height = line_height;
-        //}
+        self.update_effects(res, parent_rot, parent_tr, ctrl_obj, line_height, bpm_list, index);
+    }
+
+    pub(crate) fn has_pending_effect(&self, time: f32) -> bool {
+        matches!(self.judge, JudgeStatus::Hold(_, at, ..) if time >= at)
+    }
+
+    pub(crate) fn update_effects(&mut self, res: &mut Resource, parent_rot: f32, parent_tr: &Matrix, ctrl_obj: &mut CtrlObject, line_height: f32, bpm_list: &BpmList, index: usize) {
         let color = match &mut self.judge {
             JudgeStatus::Hold(perfect, ref mut at, ..) if res.time >= *at => {
                 let bpm_index = if self.format { index as f32 } else { self.time };
@@ -267,19 +352,49 @@ impl Note {
 
     #[inline(always)]
     pub fn now_transform(&self, res: &Resource, ctrl_obj: &CtrlObject, base: f32, incline_sin: f32) -> Matrix {
+        self.now_transform_with_aspect(res.aspect_ratio, ctrl_obj, base, incline_sin)
+    }
+
+    #[inline(always)]
+    fn now_transform_with_aspect(&self, aspect_ratio: f32, ctrl_obj: &CtrlObject, base: f32, incline_sin: f32) -> Matrix {
         let translation_y = self.object.translation.1.now();
-        let aspect_base = base * res.aspect_ratio;
+        let aspect_base = base * aspect_ratio;
         let incline_val = 1.0 - incline_sin * (aspect_base + translation_y) * RPE_HEIGHT_SCALE;
         let ctrl_pos = ctrl_obj.pos.now_opt().unwrap_or(1.0);
-        let mut tr = self.object.now_translation(res);
+        let mut tr = self.object.translation.now();
+        tr.y /= aspect_ratio;
         tr.x *= incline_val * ctrl_pos;
         tr.y += base;
-        self.object.now_rotation()
-            .append_nonuniform_scaling(&self.object.scale.now_with_def(1.0, 1.0))
-            .append_translation(&tr)
+        let rotation = self.object.rotation.now().to_radians();
+        let (sin, cos) = if rotation == 0.0 { (0.0, 1.0) } else { rotation.sin_cos() };
+        let scale = self.object.scale.now_with_def(1.0, 1.0);
+        Matrix::new(scale.x * cos, -scale.x * sin, tr.x, scale.y * sin, scale.y * cos, tr.y, 0., 0., 1.)
+    }
+
+    #[inline(always)]
+    fn render_transform(&self, res: &NoteRenderContext, config: &RenderConfig, base: f32) -> Matrix {
+        let local = self.now_transform_with_aspect(res.aspect_ratio, &config.ctrl_obj, base, config.incline_sin);
+        let parent = res.model();
+        if parent.m31 != 0. || parent.m32 != 0. || parent.m33 != 1. {
+            return parent * local;
+        }
+        Matrix::new(
+            parent.m11 * local.m11 + parent.m12 * local.m21,
+            parent.m11 * local.m12 + parent.m12 * local.m22,
+            (parent.m11 * local.m13 + parent.m12 * local.m23) + parent.m13,
+            parent.m21 * local.m11 + parent.m22 * local.m21,
+            parent.m21 * local.m12 + parent.m22 * local.m22,
+            (parent.m21 * local.m13 + parent.m22 * local.m23) + parent.m23,
+            0., 0., 1.,
+        )
     }
 
     pub fn render(&self, res: &mut Resource, config: &mut RenderConfig, bpm_list: &BpmList) {
+        let frame = RenderFrame::new(res);
+        self.render_prepared(&NoteRenderContext { frame: &frame, model: res.model(), note_buffer: &res.note_buffer }, config, bpm_list);
+    }
+
+    pub(crate) fn render_prepared(&self, res: &NoteRenderContext, config: &mut RenderConfig, bpm_list: &BpmList) {
     if matches!(self.judge, JudgeStatus::Judged) && !matches!(self.kind, NoteKind::Hold { .. }) {
         return;
     }
@@ -298,7 +413,7 @@ impl Note {
 
     let y_factor = config.ctrl_obj.y.now_opt().unwrap_or(1.);
     let spd = self.speed * y_factor * config.global_speed_factor;
-    let inv_aspect = res.inv_aspect_ratio; // 使用缓存的值
+    let inv_aspect = res.inv_aspect_ratio;
     let line_height = config.line_height * inv_aspect * spd;
     let height = self.height * inv_aspect * spd;
     let base = height - line_height;
@@ -326,6 +441,7 @@ impl Note {
         1.0
     };
 
+    let style = if res.config.double_hint && self.multiple_hint { &res.res_pack.note_style_mh } else { &res.res_pack.note_style };
     self.init_ctrl_obj(&mut config.ctrl_obj, config.line_height);
     let mut color = self.object.now_color();
 
@@ -344,7 +460,7 @@ impl Note {
         color.b = (color.b * adjust).min(1.0);
     }
 
-    // Alpha
+
     let ctrl_alpha = config.ctrl_obj.alpha.now_opt().unwrap_or(1.0);
     color.a *= res.alpha * ctrl_alpha;
 
@@ -353,13 +469,7 @@ impl Note {
     }
 
     let order = self.kind.order();
-    let style = if res.config.double_hint && self.multiple_hint {
-        &res.res_pack.note_style_mh
-    } else {
-        &res.res_pack.note_style
-    };
 
-    // Fade out for non-hold
     if !config.draw_below && !matches!(self.kind, NoteKind::Hold { .. }) {
         let fade = (self.time - res.time).min(0.0) / FADEOUT_TIME + 1.0;
         color.a *= fade;
@@ -437,9 +547,9 @@ impl Note {
                 style.hold_body_rect()
             };
 
-            // Compute the final (line model * note transform) matrix once for all
-            // hold parts, so each part only needs 4 point transforms instead of 8.
-            let model = res.model() * self.now_transform(res, &config.ctrl_obj, 0., config.incline_sin);
+
+
+            let model = self.render_transform(res, config, 0.);
 
             self.render_quad_raw(
                 res, config, &model, scale, color, order,
@@ -468,18 +578,18 @@ impl Note {
     }
 }
 
-    // 渲染居中 quad
-    fn render_quad(&self, res: &Resource, config: &RenderConfig, base: f32, scale: f32, color: Color, order: i8, tex: Texture2D, source: Rect) {
+    #[inline(always)]
+    fn render_quad(&self, res: &NoteRenderContext, config: &RenderConfig, base: f32, scale: f32, color: Color, order: i8, tex: Texture2D, source: Rect) {
         let hf = vec2(scale, tex.height() * scale / tex.width());
-        let model = res.model() * self.now_transform(res, &config.ctrl_obj, base, config.incline_sin);
+        let model = self.render_transform(res, config, base);
         self.render_quad_raw(res, config, &model, scale, color, order, tex, source, hf * 2., false, -hf.y);
     }
 
-    // 底层 quad 提交
-    // `model` is the *combined* line-model * note-transform matrix (see `Resource::model`).
+
+    #[inline(always)]
     fn render_quad_raw(
         &self,
-        res: &Resource,
+        res: &NoteRenderContext,
         _config: &RenderConfig,
         model: &Matrix,
         scale: f32,
@@ -516,10 +626,10 @@ impl Note {
             Point::new(x, y + h),
         ];
 
-        // Screen positions: one matrix application per point (the caller already
-        // folded in the line's model matrix, so no second transform is needed).
-        let p_screen = p.map(|pt| model.transform_point(&pt));
-        let chart_ratio_inv = res.chart_ratio_inv; // 使用缓存的值
+
+
+        let p_screen = transform_quad(model, p);
+        let chart_ratio_inv = res.chart_ratio_inv;
         let (min_x, max_x, min_y, max_y) = p_screen.iter().fold(
             (f32::MAX, f32::MIN, f32::MAX, f32::MIN),
             |(min_x, max_x, min_y, max_y), pt| {
@@ -530,13 +640,13 @@ impl Note {
             return;
         }
 
-        // Flip if needed (your original logic)
+
         let mut p_final = p_screen;
-        // flip_y is always true in your code
+
         p_final.swap(0, 3);
         p_final.swap(1, 2);
 
-        // Build vertices
+
         let sx1 = final_source.x + final_source.w;
         let sy1 = final_source.y + final_source.h;
         let vertices = [
@@ -546,7 +656,7 @@ impl Note {
             Vertex::new(p_final[3].x, p_final[3].y, 0., final_source.x, sy1, color),
         ];
 
-        // Submit to batch buffer
+
         res.note_buffer.borrow_mut().push(
             (order, texture_gl_id(&tex)),
             vertices
