@@ -123,23 +123,17 @@ impl<T: Tweenable> Anim<T> {
             self.time = time;
             return;
         }
-        // Keyframes are kept in time order. A large jump (seeking, scrubbing, or
-        // the per-frame line loop visiting notes out of order) would otherwise
-        // walk the whole chain, so resolve it with a binary search and only fall
-        // back to the incremental walk when the cursor is already close.
-        let target = self.keyframes.partition_point(|kf| kf.time <= time).saturating_sub(1);
-        if self.cursor.abs_diff(target) > 8 {
-            self.cursor = target;
-        } else {
-            while let Some(kf) = self.keyframes.get(self.cursor + 1) {
-                if kf.time > time {
-                    break;
-                }
-                self.cursor += 1;
-            }
-            while self.cursor != 0 && self.keyframes[self.cursor].time > time {
-                self.cursor -= 1;
-            }
+        let mut steps = 0;
+        while self.cursor + 1 < self.keyframes.len() && self.keyframes[self.cursor + 1].time <= time && steps < 8 {
+            self.cursor += 1;
+            steps += 1;
+        }
+        while self.cursor != 0 && self.keyframes[self.cursor].time > time && steps < 8 {
+            self.cursor -= 1;
+            steps += 1;
+        }
+        if (self.cursor + 1 < self.keyframes.len() && self.keyframes[self.cursor + 1].time <= time) || (self.cursor != 0 && self.keyframes[self.cursor].time > time) {
+            self.cursor = self.keyframes.partition_point(|kf| kf.time <= time).saturating_sub(1);
         }
         self.time = time;
         if let Some(next) = &mut self.next {
