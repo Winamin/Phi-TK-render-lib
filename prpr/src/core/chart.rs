@@ -1,10 +1,13 @@
 use super::{BpmList, Effect, JudgeLine, JudgeLineKind, Matrix, Resource, UIElement, Vector, Video};
-use crate::{ext::{spawn_task, SafeTexture}, fs::FileSystem, judge::JudgeStatus, ui::Ui};
+use crate::{fs::FileSystem, judge::JudgeStatus, ui::Ui};
 use anyhow::{Context, Result};
-use futures_util::{stream::FuturesUnordered, StreamExt};
 use macroquad::prelude::*;
-use once_cell::sync::Lazy;
 use std::{cell::RefCell, collections::{HashMap, HashSet}};
+use once_cell::sync::Lazy;
+use rayon::prelude::*;
+use futures_util::{stream::FuturesUnordered, StreamExt};
+use super::{line::{LineLocalState, LineRenderBuffer, LineRenderGpu}, note::RenderFrame};
+use crate::ext::{get_viewport, spawn_task, SafeTexture};
 use tracing::warn;
 
 pub(crate) static RENDER_POOL: Lazy<rayon::ThreadPool> = Lazy::new(|| {
@@ -15,6 +18,10 @@ pub(crate) static RENDER_POOL: Lazy<rayon::ThreadPool> = Lazy::new(|| {
     let participate = std::env::var("PRPR_RENDER_MAIN_THREAD")
         .map_or(true, |value| !matches!(value.trim().to_ascii_lowercase().as_str(), "0" | "false" | "off"));
     if participate { builder.use_current_thread() } else { builder }.build().unwrap()
+});
+
+static PARALLEL_UPDATE: Lazy<bool> = Lazy::new(|| {
+    std::env::var("PRPR_PARALLEL_UPDATE").map_or(true, |value| !matches!(value.as_str(), "0" | "false" | "off"))
 });
 
 pub(crate) static RENDER_CHUNK_SIZE: Lazy<usize> = Lazy::new(|| {
@@ -43,7 +50,12 @@ pub struct Chart {
     pub order: Vec<usize>,
     pub attach_ui: [Option<usize>; 7],
     world_positions: Vec<Vector>,
+    local_states: Vec<LineLocalState>,
     trs: Vec<Matrix>,
+    position_order: Vec<usize>,
+    parents: Vec<Option<usize>>,
+    render_buffers: RefCell<Vec<LineRenderBuffer>>,
+    render_gpu: RefCell<Vec<LineRenderGpu>>,
 }
 
 impl Chart {
@@ -61,6 +73,8 @@ impl Chart {
             .collect::<Vec<_>>();
         order.sort_by_key(|it| (lines[*it].z_index, *it));
         let capacity = lines.len();
+        let parents = lines.iter().map(|it| it.parent).collect();
+        let position_order = Self::position_order(&lines);
         Self {
             offset,
             lines,
@@ -71,7 +85,12 @@ impl Chart {
             order,
             attach_ui,
             world_positions: Vec::with_capacity(capacity),
+            local_states: Vec::with_capacity(capacity),
             trs: Vec::with_capacity(capacity),
+            position_order,
+            parents,
+            render_buffers: RefCell::new(Vec::new()),
+            render_gpu: RefCell::new(Vec::new()),
         }
     }
 
@@ -153,6 +172,30 @@ impl Chart {
         Ok(())
     }
 
+    fn position_order(lines: &[JudgeLine]) -> Vec<usize> {
+        let mut children = vec![Vec::new(); lines.len()];
+        let mut pending = vec![false; lines.len()];
+        let mut order = Vec::with_capacity(lines.len());
+        for (id, line) in lines.iter().enumerate() {
+            if let Some(parent) = line.parent.filter(|it| *it < lines.len() && *it != id) {
+                children[parent].push(id);
+                pending[id] = true;
+            } else {
+                order.push(id);
+            }
+        }
+        let mut index = 0;
+        while index < order.len() {
+            for &child in &children[order[index]] {
+                pending[child] = false;
+                order.push(child);
+            }
+            index += 1;
+        }
+        order.extend(pending.iter().enumerate().filter_map(|(id, pending)| pending.then_some(id)));
+        order
+    }
+
     pub fn reset(&mut self) {
         self.lines
             .iter_mut()
@@ -167,32 +210,45 @@ impl Chart {
     }
 
     pub fn update(&mut self, res: &mut Resource) {
-        // All judge lines share a single full-frame GPU readback per update.
         crate::core::begin_readback_cycle();
-
-        // `Anim::set_time` 内部已按二分定位关键帧，父线的世界坐标也由下面的
-        // `fetch_pos` 按帧记忆化，这一段的每帧开销已是 O(判定线数)。
-        for line in &mut self.lines {
-            line.object.set_time(res.time);
-            // Drop the previous frame's position *before* recomputing: a parent whose
-            // index is greater than its child's would otherwise be resolved from a
-            // stale value. `fetch_pos` then memoizes parents already computed this frame.
-            line.cached_world_pos = None;
-        }
-
         let count = self.lines.len();
-        self.world_positions.clear();
-        self.trs.clear();
-        for i in 0..count {
-            let pos = JudgeLine::fetch_pos(&self.lines[i], res, &self.lines);
-            self.world_positions.push(pos);
-            self.lines[i].cached_world_pos = Some(pos);
-            self.trs.push(self.lines[i].now_transform_with_pos(pos));
+        if self.parents.len() != count || self.lines.iter().zip(&self.parents).any(|(line, parent)| line.parent != *parent) {
+            self.parents = self.lines.iter().map(|it| it.parent).collect();
+            self.position_order = Self::position_order(&self.lines);
         }
-
+        self.local_states.resize(count, LineLocalState::default());
+        let parallel = *PARALLEL_UPDATE && RENDER_POOL.current_num_threads() > 1
+            && (count >= 16 || self.lines.iter().map(JudgeLine::pending_updates).sum::<usize>() >= 1024);
+        let time = res.time;
+        let aspect_ratio = res.aspect_ratio;
+        if parallel {
+            let mut tasks: Vec<_> = self.lines.iter_mut().map(JudgeLine::update_task).collect();
+            let local_states = &mut self.local_states;
+            RENDER_POOL.install(|| {
+                tasks.par_iter_mut().zip(local_states.par_iter_mut()).with_max_len(1).for_each(|(task, local)| {
+                    *local = task.prepare(time, aspect_ratio, true);
+                });
+            });
+        } else {
+            for (line, local) in self.lines.iter_mut().zip(&mut self.local_states) {
+                *local = line.update_task().prepare(time, aspect_ratio, false);
+            }
+        }
+        self.world_positions.clear();
+        self.world_positions.resize(count, Vector::zeros());
+        self.trs.resize(count, Matrix::identity());
+        for &id in &self.position_order {
+            let local = self.local_states[id];
+            let pos = self.parents[id].filter(|parent| *parent < count && *parent != id).map_or(local.translation, |parent| {
+                self.world_positions[parent] + self.local_states[parent].rotation * local.translation
+            });
+            self.world_positions[id] = pos;
+            self.trs[id] = local.rotation.to_homogeneous().append_translation(&pos);
+            self.lines[id].cached_world_pos = Some(pos);
+        }
         let guard = self.bpm_list.borrow();
         for (index, line) in self.lines.iter_mut().enumerate() {
-            line.update(res, self.trs[index], &guard, index);
+            line.finish_update(res, self.trs[index], &guard, index);
 
             if res.config.hand_split {
                 line.update_hand_assign_with_world_pos(res, self.world_positions[index], index);
@@ -216,12 +272,40 @@ impl Chart {
                 video.render(res);
             }
         });
-        res.apply_model_of(&Matrix::identity().append_nonuniform_scaling(&Vector::new(if res.config.flip_x() { -1. } else { 1. }, -1.)), |res| {
-            let guard = self.bpm_list.borrow();
-            for id in &self.order {
-                self.lines[*id].render(ui, res, &self.lines, &guard, &self.settings, *id);
+        let guard = self.bpm_list.borrow();
+        let settings = &self.settings;
+        let bpm_list: &BpmList = &guard;
+        let frame = RenderFrame::new(res);
+        let controls: Vec<_> = self.lines.iter().map(|line| line.ctrl_obj.borrow()).collect();
+        let tasks: Vec<_> = self.lines.iter().zip(&controls).map(|(line, ctrl)| line.attach_ui.is_none().then(|| line.render_task(res, &self.lines, ctrl))).collect();
+        let vp = get_viewport();
+        let ui_model = ui.get_matrix();
+        let font = ui.text_painter.font();
+        let texture_limit = ui.text_painter.texture_limit();
+        let mut buffers = self.render_buffers.borrow_mut();
+        buffers.resize_with(self.lines.len(), LineRenderBuffer::default);
+        let parallel = RENDER_POOL.current_num_threads() > 1;
+        let prepare = |(task, buffer): (&Option<super::line::LineRenderTask>, &mut LineRenderBuffer)| {
+            if let Some(task) = task {
+                task.prepare(buffer, &frame, bpm_list, settings, vp, ui_model, &font, texture_limit, parallel);
             }
-            drop(guard);
+        };
+        if parallel {
+            let buffer_slice = buffers.as_mut_slice();
+            RENDER_POOL.install(|| tasks.par_iter().zip(buffer_slice.par_iter_mut()).with_max_len(1).for_each(prepare));
+        } else {
+            tasks.iter().zip(buffers.iter_mut()).for_each(prepare);
+        }
+        drop(tasks);
+        drop(controls);
+        drop(frame);
+        drop(guard);
+        let mut gpu = self.render_gpu.borrow_mut();
+        gpu.resize_with(self.lines.len(), LineRenderGpu::default);
+        res.apply_model_of(&Matrix::identity().append_nonuniform_scaling(&Vector::new(if res.config.flip_x() { -1. } else { 1. }, -1.)), |res| {
+            for &id in &self.order {
+                self.lines[id].render_prepared(ui, res, &self.lines, &buffers[id], &mut gpu[id], id);
+            }
             res.note_buffer.borrow_mut().draw_all();
         });
     }
