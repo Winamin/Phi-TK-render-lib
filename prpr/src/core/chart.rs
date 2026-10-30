@@ -2,10 +2,23 @@ use super::{BpmList, Effect, JudgeLine, JudgeLineKind, Matrix, Resource, UIEleme
 use crate::{fs::FileSystem, judge::JudgeStatus, ui::Ui};
 use anyhow::{Context, Result};
 use macroquad::prelude::*;
+use once_cell::sync::Lazy;
 use std::cell::RefCell;
 use tracing::warn;
 
-//use rayon::prelude::*;
+pub(crate) static RENDER_POOL: Lazy<rayon::ThreadPool> = Lazy::new(|| {
+    let threads = std::env::var("PRPR_RENDER_THREADS").ok().and_then(|it| it.parse::<usize>().ok()).filter(|it| *it > 0).unwrap_or_else(|| num_cpus::get_physical().min(8).max(1));
+    let builder = rayon::ThreadPoolBuilder::new().num_threads(threads).thread_name(|id| format!("chart-render-{id}"));
+    // While waiting for this frame's data, main can help the same pool without
+    // another wakeup. Disable participation when caller CPU usage takes priority.
+    let participate = std::env::var("PRPR_RENDER_MAIN_THREAD")
+        .map_or(true, |value| !matches!(value.trim().to_ascii_lowercase().as_str(), "0" | "false" | "off"));
+    if participate { builder.use_current_thread() } else { builder }.build().unwrap()
+});
+
+pub(crate) static RENDER_CHUNK_SIZE: Lazy<usize> = Lazy::new(|| {
+    std::env::var("PRPR_RENDER_CHUNK_SIZE").ok().and_then(|it| it.parse::<usize>().ok()).filter(|it| *it > 0).unwrap_or(128)
+});
 
 #[derive(Default)]
 pub struct ChartExtra {
