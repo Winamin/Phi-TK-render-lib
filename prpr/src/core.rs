@@ -29,6 +29,7 @@ mod object;
 pub use object::{CtrlObject, Object};
 
 mod render;
+pub(crate) use render::release_graphics;
 pub use render::{begin_readback_cycle, MSRenderTarget};
 
 mod resource;

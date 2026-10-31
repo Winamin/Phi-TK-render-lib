@@ -41,9 +41,9 @@ tokio = "1.47.1"
 uuid = { version = "1.0", features = ["v4"] }
 num_cpus = "1.16"
 #macroquad = { path = "D:/Github/prpr-macroquad", default-features = false }
-macroquad = { git = "https://github.com/Winamin/prpr-macroquad", default-features = false }
+macroquad = { git = "https://github.com/Winamin/prpr-macroquad", default-features = false, branch = "android" }
 #iniquad = { path = "D:/Github/prpr-miniquad" }
-miniquad = { git = "https://github.com/Winamin/prpr-miniquad"}
+miniquad = { git = "https://github.com/Winamin/prpr-miniquad", branch = "android"}
 nalgebra = "*"
 once_cell = "1.16.0"
 ordered-float = "3.4.0"

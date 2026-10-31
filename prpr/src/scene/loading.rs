@@ -2,7 +2,7 @@ use super::{draw_background, ending::RecordUpdateState, game::GameMode, GameScen
 use crate::{
     config::Config,
     core::Resource,
-    ext::{draw_illustration, draw_parallelogram, draw_text_aligned, draw_text_aligned_fix, poll_future, LocalTask, SafeTexture, BLACK_TEXTURE},
+    ext::{draw_illustration, draw_parallelogram, draw_text_aligned, draw_text_aligned_fix, poll_future, LocalTask, SafeTexture, black_texture},
     fs::FileSystem,
     info::ChartInfo,
     judge::Judge,
@@ -93,7 +93,7 @@ impl LoadingScene {
         };
         let (illustration, background): (SafeTexture, SafeTexture) = background
             .map(|(ill, back)| (ill.into(), back.into()))
-            .unwrap_or_else(|| (BLACK_TEXTURE.clone(), BLACK_TEXTURE.clone()));
+            .unwrap_or_else(|| (black_texture(), black_texture()));
         if info.tip.is_none() {
             info.tip = Some(crate::config::TIPS.choose(&mut thread_rng()).unwrap().to_owned());
         }

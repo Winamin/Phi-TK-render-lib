@@ -249,8 +249,8 @@ pub struct Judge {
     ai_triggered: Vec<std::collections::HashSet<u32>>,
 }
 
-static SUBSCRIBER_ID: Lazy<usize> = Lazy::new(register_input_subscriber);
 thread_local! {
+    static SUBSCRIBER_ID: Lazy<usize> = Lazy::new(register_input_subscriber);
     static TOUCHES: RefCell<(Vec<Touch>, i32, u32)> = RefCell::default();
 }
 
@@ -452,7 +452,7 @@ impl Judge {
 
     pub(crate) fn on_new_frame() {
         let mut handler = Handler(Vec::new(), 0, 0);
-        repeat_all_miniquad_input(&mut handler, *SUBSCRIBER_ID);
+        SUBSCRIBER_ID.with(|id| repeat_all_miniquad_input(&mut handler, **id));
         handler.finalize();
         TOUCHES.with(|it| {
             *it.borrow_mut() = (handler.0, handler.1, handler.2);

@@ -21,6 +21,13 @@ struct Rb {
 
 static RB: Lazy<Mutex<Rb>> = Lazy::new(|| Mutex::new(Rb { cache: None, target: None, staging: Vec::new() }));
 
+pub(crate) fn release_graphics() {
+    let mut state = RB.lock().unwrap_or_else(|p| p.into_inner());
+    state.cache = None;
+    if let Some(target) = state.target.take() { target.delete(); }
+    state.staging.clear();
+}
+
 pub struct MSRenderTarget {
     dim: (u32, u32),
     /// Multisampled pass resolving into `out[0]`; absent when the backend

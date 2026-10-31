@@ -73,7 +73,7 @@ impl Video {
         alpha: Anim<f32>,
         dim: Anim<f32>,
     ) -> Result<Self> {
-        let mut video_file = NamedTempFile::new()?;
+        let mut video_file = crate::fs::create_temp_file()?;
         video_file.write_all(&data)?;
         drop(data);
 
@@ -316,3 +316,4 @@ void main() {
     FragColor = vec4(yuv * color_matrix, 1.0) * color;
 }"#;
 }
+use crate::shader::load_material;

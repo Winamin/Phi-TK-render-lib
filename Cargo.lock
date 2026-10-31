@@ -1692,9 +1692,9 @@ checksum = "4ef6b89e5b37196644d8796de5268852ff179b44e96276cf4290264843743bb7"
 
 [[package]]
 name = "encoding_rs"
-version = "0.8.42"
+version = "0.8.44"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8e985e0451871ad22fb8d2b6b076e2028a502a0d3950998c2c5c0a4f9b5d9679"
+checksum = "89253175e704ab869b04f9db224d38630e0211a53841a79181deae0889e169f5"
 dependencies = [
  "cfg-if",
  "core_detect",
@@ -3583,9 +3583,9 @@ dependencies = [
 
 [[package]]
 name = "log"
-version = "0.4.34"
+version = "0.4.35"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f9f8bd3e56ce4dfc153cf470fffbfa98c7620958b312ca5c3a4b8d5181fd13c6"
+checksum = "5d15f86d12da44cd8d4ec3c73984537eb7f4cadcb9776a575a0a8a05ca11005c"
 
 [[package]]
 name = "logos"
@@ -3707,16 +3707,35 @@ dependencies = [
 [[package]]
 name = "macroquad"
 version = "0.3.25"
+source = "git+https://github.com/Winamin/prpr-macroquad?branch=android#10b47d7df7464d25dff9f0ac7279fef65a7906cf"
+dependencies = [
+ "bumpalo",
+ "fontdue",
+ "glam 0.30.10",
+ "image 0.25.10",
+ "macroquad_macro 0.1.7 (git+https://github.com/Winamin/prpr-macroquad?branch=android)",
+ "miniquad 0.3.15 (git+https://github.com/Winamin/prpr-miniquad?branch=android)",
+ "quad-rand",
+]
+
+[[package]]
+name = "macroquad"
+version = "0.3.25"
 source = "git+https://github.com/Winamin/prpr-macroquad#800b4d8c9a0b166f6de83149006e7d4a5fe0e54e"
 dependencies = [
  "bumpalo",
  "fontdue",
  "glam 0.30.10",
  "image 0.25.10",
- "macroquad_macro",
- "miniquad",
+ "macroquad_macro 0.1.7 (git+https://github.com/Winamin/prpr-macroquad)",
+ "miniquad 0.3.15 (git+https://github.com/Winamin/prpr-miniquad)",
  "quad-rand",
 ]
+
+[[package]]
+name = "macroquad_macro"
+version = "0.1.7"
+source = "git+https://github.com/Winamin/prpr-macroquad?branch=android#10b47d7df7464d25dff9f0ac7279fef65a7906cf"
 
 [[package]]
 name = "macroquad_macro"
@@ -3851,6 +3870,37 @@ name = "minimal-lexical"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "68354c5c6bd36d73ff3feceb05efa59b6acb7626617f4962be322a825e61f79a"
+
+[[package]]
+name = "miniquad"
+version = "0.3.15"
+source = "git+https://github.com/Winamin/prpr-miniquad?branch=android#a24f5bed1e5f1ef3352d5df7dc89dc473a4b4531"
+dependencies = [
+ "ash 0.37.3+1.3.251",
+ "ash-window",
+ "gpu-allocator 0.26.0",
+ "keyboard-types",
+ "libc",
+ "napi-build-ohos",
+ "napi-derive-ohos",
+ "napi-ohos",
+ "ndk-context",
+ "ndk-sys 0.2.2",
+ "objc",
+ "ohos-hilog-binding",
+ "ohos-ime-binding",
+ "ohos-input-sys",
+ "ohos-sys-opaque-types",
+ "ohos-xcomponent-binding",
+ "ohos-xcomponent-sys",
+ "ohos_enum_macro 0.0.2",
+ "raw-window-handle 0.5.2",
+ "raw-window-handle 0.6.2",
+ "rayon",
+ "shaderc",
+ "winapi",
+ "xcomponent-sys",
+]
 
 [[package]]
 name = "miniquad"
@@ -5122,7 +5172,7 @@ dependencies = [
  "logos",
  "lru",
  "lyon",
- "macroquad",
+ "macroquad 0.3.25 (git+https://github.com/Winamin/prpr-macroquad)",
  "md5",
  "nalgebra",
  "ndk-context",
@@ -5168,7 +5218,7 @@ dependencies = [
  "chrono",
  "futures-util",
  "log",
- "macroquad",
+ "macroquad 0.3.25 (git+https://github.com/Winamin/prpr-macroquad)",
  "phira-mp-client",
  "phira-mp-common",
  "pretty_env_logger",
@@ -5494,9 +5544,9 @@ dependencies = [
  "libc",
  "lru",
  "lyon",
- "macroquad",
+ "macroquad 0.3.25 (git+https://github.com/Winamin/prpr-macroquad?branch=android)",
  "memmap2",
- "miniquad",
+ "miniquad 0.3.15 (git+https://github.com/Winamin/prpr-miniquad?branch=android)",
  "miniz_oxide 0.7.4",
  "naga",
  "nalgebra",

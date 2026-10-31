@@ -10,6 +10,7 @@ pub mod l10n;
 pub mod parse;
 pub mod particle;
 pub mod scene;
+mod shader;
 pub mod task;
 pub mod time;
 pub mod ui;
@@ -29,6 +30,22 @@ pub mod inner;
 pub mod objc;
 
 pub use scene::Main;
+
+/// Own this before constructing scenes and drop it while the graphics context
+/// is still current. Android may create another preview in the same process.
+pub struct GraphicsSession;
+
+impl Drop for GraphicsSession {
+    fn drop(&mut self) {
+        scene::DIALOG.with(|dialog| { dialog.borrow_mut().take(); });
+        scene::BILLBOARD.with(|billboard| {
+            *billboard.borrow_mut() = (ui::BillBoard::new(), time::TimeManager::default());
+        });
+        ui::release_graphics();
+        core::release_graphics();
+        ext::release_graphics();
+    }
+}
 
 pub fn build_conf() -> macroquad::window::Conf {
     macroquad::window::Conf {

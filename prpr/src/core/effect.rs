@@ -1,4 +1,5 @@
 use super::{Anim, Resource, Tweenable};
+use crate::shader::load_material;
 use crate::ext::{get_viewport, screen_aspect};
 use anyhow::{anyhow, bail, Result};
 use macroquad::prelude::*;
@@ -321,7 +322,7 @@ fn fragment_shader(source: &str, uniforms_block: &str) -> String {
 
     let mut binding = FIRST_MATERIAL_TEXTURE_BINDING;
     let mut written = false;
-    UNIFORM_RE
+    let source = UNIFORM_RE
         .replace_all(source, |caps: &regex::Captures| {
             let (its_type, name) = (&caps[1], &caps[2]);
             let tail = &caps[3];
@@ -339,5 +340,19 @@ fn fragment_shader(source: &str, uniforms_block: &str) -> String {
                 uniforms_block.to_owned()
             }
         })
-        .into_owned()
+        .into_owned();
+    // RPE packs can contain GLSL ES 1.00 effects. Normalize their interface
+    // before selecting Vulkan or converting it to GLES in shader::source.
+    static VERSION: Lazy<Regex> = Lazy::new(|| Regex::new(r"(?m)^\s*#version[^\n]*").unwrap());
+    static PRECISION: Lazy<Regex> = Lazy::new(|| Regex::new(r"precision\s+(lowp|mediump|highp)\s+(float|int)\s*;").unwrap());
+    static UV: Lazy<Regex> = Lazy::new(|| Regex::new(r"\bvarying\s+vec2\s+uv\s*;").unwrap());
+    static LEGACY: Lazy<Regex> = Lazy::new(|| Regex::new(r"\b(texture2D|gl_FragColor)\b").unwrap());
+    let source = VERSION.replace_all(&source, "");
+    let source = PRECISION.replace_all(&source, "");
+    let source = UV.replace_all(&source, "layout(location = 0) in vec2 uv;");
+    let output = if source.contains("gl_FragColor") { "layout(location = 0) out vec4 prpr_FragColor;\n" } else { "" };
+    let source = LEGACY.replace_all(&source, |caps: &regex::Captures| {
+        if &caps[1] == "texture2D" { "texture" } else { "prpr_FragColor" }
+    });
+    format!("#version 450 core\n{output}{source}")
 }

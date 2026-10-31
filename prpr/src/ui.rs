@@ -14,6 +14,7 @@ mod shading;
 pub use shading::*;
 
 mod shadow;
+pub(crate) use shadow::release_graphics;
 pub use shadow::*;
 
 mod text;

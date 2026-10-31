@@ -462,6 +462,8 @@ impl Emitter {
             };
             let vertex = preprocess_shader(vertex, &pre);
             let fragment = preprocess_shader(fragment, &pre);
+            let vertex = crate::shader::source(ctx, &vertex);
+            let fragment = crate::shader::source(ctx, &fragment);
             Shader::new(ctx, &vertex, &fragment, shader::meta()).unwrap()
         };
 
@@ -496,10 +498,12 @@ impl Emitter {
             },
         );
 
+        let vertex = crate::shader::source(ctx, post_processing_shader::VERTEX);
+        let fragment = crate::shader::source(ctx, post_processing_shader::FRAGMENT);
         let post_processing_shader = Shader::new(
             ctx,
-            post_processing_shader::VERTEX,
-            post_processing_shader::FRAGMENT,
+            &vertex,
+            &fragment,
             post_processing_shader::meta(),
         )
             .unwrap();

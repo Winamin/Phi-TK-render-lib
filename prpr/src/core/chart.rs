@@ -17,7 +17,9 @@ pub(crate) static RENDER_POOL: Lazy<rayon::ThreadPool> = Lazy::new(|| {
     // another wakeup. Disable participation when caller CPU usage takes priority.
     let participate = std::env::var("PRPR_RENDER_MAIN_THREAD")
         .map_or(true, |value| !matches!(value.trim().to_ascii_lowercase().as_str(), "0" | "false" | "off"));
-    if participate { builder.use_current_thread() } else { builder }.build().unwrap()
+    // Android creates a new render thread for each Activity. A process-wide pool
+    // must not retain the first Activity's thread as one of its workers.
+    if participate && !cfg!(target_os = "android") { builder.use_current_thread() } else { builder }.build().unwrap()
 });
 
 static PARALLEL_UPDATE: Lazy<bool> = Lazy::new(|| {

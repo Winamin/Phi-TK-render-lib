@@ -158,7 +158,15 @@ impl From<DynamicImage> for SafeTexture {
     }
 }
 
-pub static BLACK_TEXTURE: Lazy<SafeTexture> = Lazy::new(|| Texture2D::from_rgba8(1, 1, &[0, 0, 0, 255]).into());
+static BLACK_TEXTURE: Mutex<Option<SafeTexture>> = Mutex::new(None);
+
+pub fn black_texture() -> SafeTexture {
+    BLACK_TEXTURE.lock().unwrap().get_or_insert_with(|| Texture2D::from_rgba8(1, 1, &[0, 0, 0, 255]).into()).clone()
+}
+
+pub(crate) fn release_graphics() {
+    BLACK_TEXTURE.lock().unwrap().take();
+}
 
 pub fn nalgebra_to_glm(mat: &Matrix) -> Mat4 {
     /*
@@ -448,10 +456,12 @@ pub fn make_pipeline(write_color: bool, pass_op: StencilOp, test_func: CompareFu
         quad_gl: gl,
         quad_context: context,
     } = unsafe { get_internal_gl() };
+    let vertex = crate::shader::source(context, shader::VERTEX);
+    let fragment = crate::shader::source(context, shader::FRAGMENT);
     gl.make_pipeline(
         context,
-        shader::VERTEX,
-        shader::FRAGMENT,
+        &vertex,
+        &fragment,
         PipelineParams {
             color_write: (write_color, write_color, write_color, write_color),
             color_blend: Some(BlendState::new(

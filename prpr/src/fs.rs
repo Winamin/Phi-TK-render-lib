@@ -422,7 +422,13 @@ pub async fn load_info(fs: &mut dyn FileSystem) -> Result<ChartInfo> {
     }
 
     let info = match info_opt {
-        Some(info) => info,
+        Some(mut info) => {
+            if !fs.exists(&info.chart).await.unwrap_or(false) {
+                warn!("chart file {:?} is missing, inferring", info.chart);
+                fix_info(fs, &mut info).await?;
+            }
+            info
+        }
         None => {
             warn!("none of info.yml, info.txt and info.csv is found, inferring");
             let mut info = ChartInfo::default();
@@ -445,4 +451,18 @@ pub fn fs_from_file(path: &Path) -> Result<Box<dyn FileSystem + Send + Sync + 's
 
 pub fn fs_from_assets(name: impl Into<String>) -> Result<Box<dyn FileSystem + Send + Sync + 'static>> {
     Ok(Box::new(AssetsFileSystem(name.into())))
+}
+// Android apps cannot write Rust's default /data/local/tmp. The host supplies
+// Context.cacheDir before loading charts; desktop/CLI callers keep the OS default.
+static CACHE_DIR: std::sync::OnceLock<std::path::PathBuf> = std::sync::OnceLock::new();
+
+pub fn set_cache_dir(path: std::path::PathBuf) {
+    let _ = CACHE_DIR.set(path);
+}
+
+pub fn create_temp_file() -> std::io::Result<tempfile::NamedTempFile> {
+    match CACHE_DIR.get() {
+        Some(path) => tempfile::NamedTempFile::new_in(path),
+        None => tempfile::NamedTempFile::new(),
+    }
 }
