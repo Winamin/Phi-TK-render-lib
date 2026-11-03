@@ -259,10 +259,11 @@ impl Scene for LoadingScene {
         let st = (t - 1.).clamp(0., 1.).powi(3);
         let en = 1. - (1. - t.min(1.)).powi(3);
 
-        let mut r = Rect::new(r.x + r.w * st, r.y, r.w * (en - st), r.h);
+        let r = Rect::new(r.x + r.w * st, r.y, r.w * (en - st), r.h);
         ui.fill_rect(r, WHITE);
-        r.x += dx;
-        ui.scissor(Some(r));
+        let viewport = crate::ext::get_viewport();
+        let clip_top = viewport.3 as f32 / viewport.2 as f32;
+        ui.scissor(Some(Rect::new(r.x + dx, -clip_top, r.w, clip_top * 2.)));
         draw_text_aligned(ui, "Loading...", 0.865, top * 0.865, (1., 1.), 0.41, BLACK);
         ui.scissor(None);
 
