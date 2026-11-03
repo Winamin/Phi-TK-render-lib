@@ -181,6 +181,22 @@ impl<T: Tweenable + Default> Anim<T> {
 }
 
 pub type AnimFloat = Anim<f32>;
+
+impl AnimFloat {
+    /// Return the value when this animation and every chained layer are constant. Exact comparison is intentional: this is a render fast path,
+    /// not an approximation of animated data.
+    pub(crate) fn constant_value(&self) -> Option<f32> {
+        let value = self.keyframes.first()?.value;
+        if self.keyframes.iter().any(|keyframe| keyframe.value != value) {
+            return None;
+        }
+        Some(match &self.next {
+            Some(next) => value + next.constant_value()?,
+            None => value,
+        })
+    }
+}
+
 #[derive(Default, Clone, PartialEq, Debug, serde::Serialize, serde::Deserialize)]
 pub struct AnimVector(pub AnimFloat, pub AnimFloat);
 

@@ -91,6 +91,24 @@ pub struct CtrlObject {
 }
 
 impl CtrlObject {
+    #[inline]
+    fn curve_is_identity(curve: &AnimFloat) -> bool {
+        curve.is_default() || curve.constant_value() == Some(1.0)
+    }
+
+    #[inline]
+    pub(crate) fn is_identity(&self) -> bool {
+        Self::curve_is_identity(&self.alpha)
+            && Self::curve_is_identity(&self.size)
+            && Self::curve_is_identity(&self.pos)
+            && Self::curve_is_identity(&self.y)
+    }
+
+    #[inline]
+    pub(crate) fn y_is_identity(&self) -> bool {
+        Self::curve_is_identity(&self.y)
+    }
+
     pub fn set_height(&mut self, height: f32) {
         self.alpha.set_time(height);
         self.size.set_time(height);
