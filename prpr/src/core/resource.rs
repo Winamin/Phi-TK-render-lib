@@ -11,7 +11,7 @@ use macroquad::prelude::*;
 use macroquad::miniquad::{FilterMode, Texture, TextureWrap};
 use sasa::{AudioClip, AudioManager, Sfx};
 use serde::Deserialize;
-use std::{cell::RefCell, collections::BTreeMap, ops::DerefMut, path::Path, sync::atomic::AtomicU32};
+use std::{cell::RefCell, ops::DerefMut, path::Path, sync::atomic::AtomicU32};
 
 /// Quads per `NoteBuffer` mesh chunk. Kept small so a partially filled chunk
 /// still fits into (and can be merged within) a single macroquad draw call.
@@ -343,25 +343,41 @@ impl ParticleEmitter {
 }
 
 #[derive(Default)]
-pub struct NoteBuffer {
-    map: BTreeMap<(i8, u32), Vec<Vertex>>,
+pub struct NoteBuffer { buckets: Vec<NoteBucket>, }
+
+struct NoteBucket {
+    key: (i8, u32),
+    vertices: Vec<Vertex>,
 }
 
 impl NoteBuffer {
+    #[inline]
+    fn bucket_mut(&mut self, key: (i8, u32)) -> &mut Vec<Vertex> {
+        let index = match self.buckets.binary_search_by_key(&key, |bucket| bucket.key) {
+            Ok(index) => index,
+            Err(index) => {
+                self.buckets.insert(index, NoteBucket { key, vertices: Vec::new() });
+                index
+            }
+        };
+        &mut self.buckets[index].vertices
+    }
+
+    #[inline]
     pub fn push(&mut self, key: (i8, u32), vertices: [Vertex; 4]) {
-        self.map.entry(key).or_default().extend_from_slice(&vertices);
+        self.bucket_mut(key).extend_from_slice(&vertices);
     }
 
     pub(crate) fn clear(&mut self) {
-        for vertices in self.map.values_mut() {
-            vertices.clear();
+        for bucket in &mut self.buckets {
+            bucket.vertices.clear();
         }
     }
 
     pub(crate) fn append(&mut self, other: &Self) {
-        for (&key, vertices) in &other.map {
-            if !vertices.is_empty() {
-                self.map.entry(key).or_default().extend_from_slice(vertices);
+        for bucket in &other.buckets {
+            if !bucket.vertices.is_empty() {
+                self.bucket_mut(bucket.key).extend_from_slice(&bucket.vertices);
             }
         }
     }
@@ -377,10 +393,12 @@ impl NoteBuffer {
         gl.flush();
         let gl = gl.quad_gl;
         gl.draw_mode(DrawMode::Triangles);
-        for (&(_, tex_id), vertices) in &mut self.map {
-            if vertices.is_empty() {
+        for bucket in &mut self.buckets {
+            if bucket.vertices.is_empty() {
                 continue;
             }
+            let (_, tex_id) = bucket.key;
+            let vertices = &mut bucket.vertices;
             gl.texture(Some(Texture2D::from_miniquad_texture(unsafe { Texture::from_raw_id(tex_id, miniquad::TextureFormat::RGBA8) })));
             for chunk in vertices.chunks(DRAWCALL_QUADS * 4) {
                 gl.geometry(chunk, &INDICES[..chunk.len() / 4 * 6]);
