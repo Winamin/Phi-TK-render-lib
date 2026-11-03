@@ -170,6 +170,7 @@ pub(crate) struct NoteRenderContext<'a, 'b> {
     pub frame: &'a RenderFrame<'b>,
     pub model: Matrix,
     pub note_buffer: &'a RefCell<super::resource::NoteBuffer>,
+    pub ctrl_identity: bool,
 }
 
 impl<'a, 'b> Deref for NoteRenderContext<'a, 'b> {
@@ -352,15 +353,19 @@ impl Note {
 
     #[inline(always)]
     pub fn now_transform(&self, res: &Resource, ctrl_obj: &CtrlObject, base: f32, incline_sin: f32) -> Matrix {
-        self.now_transform_with_aspect(res.aspect_ratio, ctrl_obj, base, incline_sin)
+        self.now_transform_with_aspect(
+            res.aspect_ratio,
+            ctrl_obj.pos.now_opt().unwrap_or(1.0),
+            base,
+            incline_sin,
+        )
     }
 
     #[inline(always)]
-    fn now_transform_with_aspect(&self, aspect_ratio: f32, ctrl_obj: &CtrlObject, base: f32, incline_sin: f32) -> Matrix {
+    fn now_transform_with_aspect(&self, aspect_ratio: f32, ctrl_pos: f32, base: f32, incline_sin: f32) -> Matrix {
         let translation_y = self.object.translation.1.now();
         let aspect_base = base * aspect_ratio;
         let incline_val = 1.0 - incline_sin * (aspect_base + translation_y) * RPE_HEIGHT_SCALE;
-        let ctrl_pos = ctrl_obj.pos.now_opt().unwrap_or(1.0);
         let mut tr = self.object.translation.now();
         tr.y /= aspect_ratio;
         tr.x *= incline_val * ctrl_pos;
@@ -373,7 +378,8 @@ impl Note {
 
     #[inline(always)]
     fn render_transform(&self, res: &NoteRenderContext, config: &RenderConfig, base: f32) -> Matrix {
-        let local = self.now_transform_with_aspect(res.aspect_ratio, &config.ctrl_obj, base, config.incline_sin);
+        let ctrl_pos = if res.ctrl_identity { 1.0 } else { config.ctrl_obj.pos.now_opt().unwrap_or(1.0) };
+        let local = self.now_transform_with_aspect(res.aspect_ratio, ctrl_pos, base, config.incline_sin);
         let parent = res.model();
         if parent.m31 != 0. || parent.m32 != 0. || parent.m33 != 1. {
             return parent * local;
@@ -391,7 +397,12 @@ impl Note {
 
     pub fn render(&self, res: &mut Resource, config: &mut RenderConfig, bpm_list: &BpmList) {
         let frame = RenderFrame::new(res);
-        self.render_prepared(&NoteRenderContext { frame: &frame, model: res.model(), note_buffer: &res.note_buffer }, config, bpm_list);
+        self.render_prepared(&NoteRenderContext {
+            frame: &frame,
+            model: res.model(),
+            note_buffer: &res.note_buffer,
+            ctrl_identity: *super::chart::IDENTITY_CTRL_FAST_PATH && config.ctrl_obj.is_identity(),
+        }, config, bpm_list);
     }
 
     pub(crate) fn render_prepared(&self, res: &NoteRenderContext, config: &mut RenderConfig, bpm_list: &BpmList) {
@@ -411,7 +422,7 @@ impl Note {
         return;
     }
 
-    let y_factor = config.ctrl_obj.y.now_opt().unwrap_or(1.);
+    let y_factor = if res.ctrl_identity { 1.0 } else { config.ctrl_obj.y.now_opt().unwrap_or(1.) };
     let spd = self.speed * y_factor * config.global_speed_factor;
     let inv_aspect = res.inv_aspect_ratio;
     let line_height = config.line_height * inv_aspect * spd;
@@ -442,7 +453,9 @@ impl Note {
     };
 
     let style = if res.config.double_hint && self.multiple_hint { &res.res_pack.note_style_mh } else { &res.res_pack.note_style };
-    self.init_ctrl_obj(&mut config.ctrl_obj, config.line_height);
+    if !res.ctrl_identity {
+        self.init_ctrl_obj(&mut config.ctrl_obj, config.line_height);
+    }
     let mut color = self.object.now_color();
 
     if res.config.hand_split {
@@ -461,7 +474,7 @@ impl Note {
     }
 
 
-    let ctrl_alpha = config.ctrl_obj.alpha.now_opt().unwrap_or(1.0);
+    let ctrl_alpha = if res.ctrl_identity { 1.0 } else { config.ctrl_obj.alpha.now_opt().unwrap_or(1.0) };
     color.a *= res.alpha * ctrl_alpha;
 
     if should_skip && res.config.chart_debug {

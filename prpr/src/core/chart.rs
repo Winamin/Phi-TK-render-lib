@@ -24,6 +24,11 @@ static PARALLEL_UPDATE: Lazy<bool> = Lazy::new(|| {
     std::env::var("PRPR_PARALLEL_UPDATE").map_or(true, |value| !matches!(value.as_str(), "0" | "false" | "off"))
 });
 
+pub(crate) static IDENTITY_CTRL_FAST_PATH: Lazy<bool> = Lazy::new(|| {
+    std::env::var("PRPR_IDENTITY_CTRL_FAST_PATH")
+        .map_or(true, |value| !matches!(value.trim().to_ascii_lowercase().as_str(), "0" | "false" | "off"))
+});
+
 pub(crate) static RENDER_CHUNK_SIZE: Lazy<usize> = Lazy::new(|| {
     std::env::var("PRPR_RENDER_CHUNK_SIZE").ok().and_then(|it| it.parse::<usize>().ok()).filter(|it| *it > 0).unwrap_or(128)
 });

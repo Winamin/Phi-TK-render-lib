@@ -873,6 +873,7 @@ impl LineRenderTask<'_> {
         // The default order is already cached; only aggressive culling needs
         // a frame-local candidate list.
         let candidates = if agg { buffer.candidates.as_slice() } else { &self.cache.render_order };
+        let ctrl_identity = *super::chart::IDENTITY_CTRL_FAST_PATH && self.ctrl.is_identity();
         let parallel_notes = parallel && self.ctrl.y_is_identity();
         let chunk_size = if parallel_notes && candidates.len() >= 512 { *super::chart::RENDER_CHUNK_SIZE } else { candidates.len().max(1) };
         let count = candidates.len().div_ceil(chunk_size);
@@ -895,7 +896,12 @@ impl LineRenderTask<'_> {
             for &index in candidates {
                 let note = &self.notes[index];
                 let model = if note.above { self.transform } else { below_transform };
-                note.render_prepared(&NoteRenderContext { frame: res, model, note_buffer: &notes.buffer }, &mut config, bpm_list);
+                note.render_prepared(&NoteRenderContext {
+                    frame: res,
+                    model,
+                    note_buffer: &notes.buffer,
+                    ctrl_identity,
+                }, &mut config, bpm_list);
             }
         };
         if parallel_notes && count > 1 {
