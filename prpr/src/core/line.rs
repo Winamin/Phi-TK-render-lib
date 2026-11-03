@@ -632,7 +632,7 @@ impl JudgeLine {
         for notes in &buffer.note_buffers[..buffer.note_buffer_count] {
             res.note_buffer.borrow_mut().append(&notes.buffer.borrow());
         }
-        if buffer.note_buffer_count != 0 && !self.ctrl_obj.borrow().y.is_default() {
+        if buffer.note_buffer_count != 0 && !self.ctrl_obj.borrow().y_is_identity() {
             *self.ctrl_obj.borrow_mut() = buffer.note_buffers[0].ctrl.clone();
         }
         if buffer.draw_notes && res.config.chart_debug {
@@ -873,14 +873,14 @@ impl LineRenderTask<'_> {
         // The default order is already cached; only aggressive culling needs
         // a frame-local candidate list.
         let candidates = if agg { buffer.candidates.as_slice() } else { &self.cache.render_order };
-        let parallel_notes = parallel && self.ctrl.y.is_default();
+        let parallel_notes = parallel && self.ctrl.y_is_identity();
         let chunk_size = if parallel_notes && candidates.len() >= 512 { *super::chart::RENDER_CHUNK_SIZE } else { candidates.len().max(1) };
         let count = candidates.len().div_ceil(chunk_size);
         buffer.note_buffer_count = count;
         while buffer.note_buffers.len() < count {
             buffer.note_buffers.push(NoteTaskBuffer { buffer: RefCell::new(NoteBuffer::default()), ctrl: self.ctrl.clone() });
         }
-        if !self.ctrl.y.is_default() && count != 0 {
+        if !self.ctrl.y_is_identity() && count != 0 {
             buffer.note_buffers[0].ctrl = self.ctrl.clone();
         }
         let below_transform = self.transform * *FLIP_Y_MATRIX;
