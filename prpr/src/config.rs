@@ -137,7 +137,7 @@ impl Default for Config {
             watermark: "".to_string(),
             background: false,
             disable_loading: false,
-            target_audio: 96000,
+            target_audio: 48000,
 
             autoplay: None,
             show_progress_text: false,
