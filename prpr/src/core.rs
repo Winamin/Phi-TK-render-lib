@@ -69,13 +69,13 @@ impl Triple {
     }
 }
 
-unsafe impl Send for BpmList {}
-unsafe impl Sync for BpmList {}
+//unsafe impl Send for BpmList {}
+//unsafe impl Sync for BpmList {}
 
 #[derive(Default, Clone)] // the default is a dummy
 pub struct BpmList {
     elements: Vec<(f32, f32, f32)>, // (beats, time, bpm)
-    cursor: usize,
+    //cursor: usize,
 }
 
 impl BpmList {
@@ -92,7 +92,7 @@ impl BpmList {
             last_bpm = Some(bpm);
             elements.push((now_beats, time, bpm));
         }
-        BpmList { elements, cursor: 0 }
+        BpmList { elements }
     }
 
     pub fn new_time(ranges: Vec<(f32, f32)> /*(time, bpm)*/) -> Self {
@@ -100,7 +100,7 @@ impl BpmList {
         for (time, bpm) in ranges {
             elements.push((time, time, bpm));
         }
-        BpmList { elements, cursor: 0 }
+        BpmList { elements }
     }
 
     /// Rebuild the list with every segment's BPM divided by `factor`.
