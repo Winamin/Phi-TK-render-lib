@@ -13,6 +13,10 @@ use tracing::warn;
 pub(crate) static RENDER_POOL: Lazy<rayon::ThreadPool> = Lazy::new(|| {
     let threads = std::env::var("PRPR_RENDER_THREADS").ok().and_then(|it| it.parse::<usize>().ok()).filter(|it| *it > 0).unwrap_or_else(|| num_cpus::get_physical().min(8).max(1));
     let builder = rayon::ThreadPoolBuilder::new().num_threads(threads).thread_name(|id| format!("chart-render-{id}"));
+    #[cfg(feature = "tracy")]
+    let builder = builder.start_handler(|id| {
+        miniquad::tracy::register_thread(&format!("chart-render-{id}"));
+    });
     // While waiting for this frame's data, main can help the same pool without
     // another wakeup. Disable participation when caller CPU usage takes priority.
     let participate = std::env::var("PRPR_RENDER_MAIN_THREAD")
@@ -215,6 +219,8 @@ impl Chart {
     }
 
     pub fn update(&mut self, res: &mut Resource) {
+        #[cfg(feature = "tracy")]
+        let _span = miniquad::tracy::span_with_callstack(miniquad::tracy::span_location!("Chart::update"));
         crate::core::begin_readback_cycle();
         let count = self.lines.len();
         if self.parents.len() != count || self.lines.iter().zip(&self.parents).any(|(line, parent)| line.parent != *parent) {
@@ -272,6 +278,8 @@ impl Chart {
     }
 
     pub fn render(&self, ui: &mut Ui, res: &mut Resource) {
+        #[cfg(feature = "tracy")]
+        let _span = miniquad::tracy::span_with_callstack(miniquad::tracy::span_location!("Chart::render"));
         res.apply_model_of(&Matrix::identity().append_nonuniform_scaling(&Vector::new(if res.config.flip_x() { -1. } else { 1. }, 1.)), |res| {
             for video in &self.extra.videos {
                 video.render(res);

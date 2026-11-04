@@ -392,6 +392,8 @@ impl LineUpdateTask<'_> {
     }
 
     pub(crate) fn prepare(&mut self, time: f32, aspect_ratio: f32, parallel: bool) -> LineLocalState {
+        #[cfg(feature = "tracy")]
+        let _span = miniquad::tracy::span_with_callstack(miniquad::tracy::span_location!("LineUpdateTask::prepare"));
         self.object.set_time(time);
         self.update_state(time, parallel);
         let mut translation = self.object.translation.now();
@@ -561,6 +563,8 @@ impl JudgeLine {
     }
 
     pub(crate) fn render_prepared(&self, ui: &mut Ui, res: &mut Resource, lines: &[JudgeLine], buffer: &LineRenderBuffer, gpu: &mut LineRenderGpu, id: usize) {
+        #[cfg(feature = "tracy")]
+        let _span = miniquad::tracy::span_with_callstack(miniquad::tracy::span_location!("JudgeLine::render_prepared"));
         let mut texture = buffer.texture;
         if buffer.text_visible {
             let text = buffer.text.as_ref().unwrap();
@@ -733,6 +737,8 @@ impl LineRenderBuffer {
 
 impl LineRenderTask<'_> {
     pub fn prepare(&self, buffer: &mut LineRenderBuffer, res: &RenderFrame, bpm_list: &BpmList, settings: &ChartSettings, vp: (i32, i32, i32, i32), ui_model: Matrix, font: &FontArc, texture_limit: u32, parallel: bool) {
+        #[cfg(feature = "tracy")]
+        let _span = miniquad::tracy::span_with_callstack(miniquad::tracy::span_location!("LineRenderTask::prepare"));
         buffer.vertices.clear();
         buffer.indices.clear();
         buffer.texture = None;
@@ -887,6 +893,8 @@ impl LineRenderTask<'_> {
         let below_transform = self.transform * *FLIP_Y_MATRIX;
         let incline_sin = self.incline.now_opt().map(|it| it.to_radians().sin()).unwrap_or_default();
         let render = |(notes, candidates): (&mut NoteTaskBuffer, &[usize])| {
+            #[cfg(feature = "tracy")]
+            let _span = miniquad::tracy::span(miniquad::tracy::span_location!("Notes::prepare_chunk"));
             notes.buffer.get_mut().clear();
             let mut config = RenderConfig {
                 settings, ctrl_obj: &mut notes.ctrl, line_height, appear_before, invisible_time, draw_below,

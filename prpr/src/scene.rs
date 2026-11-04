@@ -488,6 +488,8 @@ impl Main {
     }
 
     pub fn render(&mut self, painter: &mut TextPainter) -> Result<()> {
+        #[cfg(feature = "tracy")]
+        let _span = miniquad::tracy::span_with_callstack(miniquad::tracy::span_location!("Main::render"));
         if self.paused {
             return Ok(());
         }
