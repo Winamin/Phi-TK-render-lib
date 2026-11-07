@@ -84,6 +84,14 @@ pub struct Config {
     pub combo_anim: bool,
     pub emitting: bool,
     pub score_aim: bool,
+    /// Accepted for compatibility with configs written by other forks (which
+    /// used it to pick between a GPU shader and a flat fallback). This branch
+    /// has a single 噪域 renderer, so the value is ignored.
+    pub block_area_simple: bool,
+    /// Draw the HUD above 噪域 (`blockAreaList`) instead of letting the effect
+    /// cover it. Off by default: the reference renderer keeps the HUD under the
+    /// effect.
+    pub block_area_ui: bool,
 
     // for compatibility
     pub autoplay: Option<bool>,
@@ -150,6 +158,8 @@ impl Default for Config {
             combo_anim: false,
             emitting: false,
             score_aim: false,
+            block_area_simple: true,
+            block_area_ui: false,
 
             ui_score: true,
             ui_combo: true,

@@ -1850,6 +1850,11 @@ impl Scene for GameScene {
         target: Option<RenderTarget>,
     ) -> Result<()> {
         self.res.camera.render_target = target;
+        // 噪域 normally sits above the chart but below the HUD. `blockAreaUi`
+        // flips the last two layers, drawing the HUD on the screen after the
+        // 噪域 pass instead of into the chart target.
+        let has_block_effect = !self.chart.block_areas.is_empty();
+        let ui_above_block = has_block_effect && self.res.config.block_area_ui;
         let res = &mut self.res;
         let asp = ui.viewport.2 as f32 / ui.viewport.3 as f32;
 
@@ -1927,13 +1932,15 @@ impl Scene for GameScene {
         self.bad_notes.retain(|dummy| dummy.render(res));
         let t = tm.real_time();
         let dt = (t - std::mem::replace(&mut self.last_update_time, t)) as f32;
-        if res.config.particle {
+        // With 噪域 present these layers are replayed after the block-area pass
+        // (see below) so hit effects stay above it.
+        if !has_block_effect && res.config.particle {
             res.emitter.draw(dt);
         }
         drop(res);
         let res = &mut self.res;
         // 特效zoom
-        if !res.no_effect {
+        if !has_block_effect && !res.no_effect {
             // Single flush before all effects (replaces per-effect flush)
             self.gl.flush();
             set_camera(&Camera2D {
@@ -1947,7 +1954,7 @@ impl Scene for GameScene {
             }
         }
 
-        {
+        if !ui_above_block {
             set_camera(&Camera2D {
                 zoom: vec2_asp,
                 viewport: chart_target_vp,
@@ -1957,7 +1964,7 @@ impl Scene for GameScene {
             self.ui(ui, tm)?;
         }
 
-        if !self.res.no_effect && !self.effects.is_empty() {
+        if !has_block_effect && !self.res.no_effect && !self.effects.is_empty() {
             // Single flush before global effects
             self.gl.flush();
             set_camera(&Camera2D {
@@ -1969,7 +1976,7 @@ impl Scene for GameScene {
             }
         }
 
-        {
+        if !ui_above_block {
             set_camera(&Camera2D {
                 zoom: vec2(1., -asp2),
                 viewport: chart_target_vp,
@@ -2012,6 +2019,72 @@ impl Scene for GameScene {
                         ..Default::default()
                     },
                 );
+
+                // 噪域 (`blockAreaList`) runs as a post pass over the resolved
+                // chart target: the shader samples that texture for refraction,
+                // so it has to be drawn after the blit above.
+                if has_block_effect {
+                    let zones = self.chart.block_effect_zones(&self.res);
+                    let texture = target.output().texture;
+                    crate::core::draw_block_effect(
+                        &zones,
+                        self.res.aspect_ratio,
+                        (texture.width() as i32, texture.height() as i32, texture.width() as i32, texture.height() as i32),
+                        texture,
+                        tm.now() as f32,
+                        (-1., -ui.top, 2., ui.top * 2.),
+                    );
+                }
+            }
+            if has_block_effect {
+                // Replay the layers that must sit above 噪域, then the HUD.
+                // Chart-space content uses the same flipped camera as the chart
+                // target; the blit flips, so the screen equivalent keeps the
+                // negative y zoom.
+                let chart_ratio = self.current_chart_ratio;
+                if self.res.config.particle {
+                    set_camera(&Camera2D {
+                        zoom: vec2(chart_ratio, -asp),
+                        viewport: Some(ui.viewport),
+                        render_target: self.res.camera.render_target,
+                        ..Default::default()
+                    });
+                    self.res.emitter.draw(dt);
+                }
+                if !self.res.no_effect {
+                    // Chart effects are authored in a +y camera.
+                    set_camera(&Camera2D {
+                        zoom: vec2(1., asp),
+                        viewport: Some(ui.viewport),
+                        render_target: self.res.camera.render_target,
+                        ..Default::default()
+                    });
+                    for effect in &self.chart.extra.effects {
+                        effect.render(&mut self.res);
+                    }
+                    if !self.effects.is_empty() {
+                        self.gl.flush();
+                        for e in &self.effects {
+                            e.render(&mut self.res);
+                        }
+                    }
+                }
+                if ui_above_block {
+                    set_camera(&Camera2D {
+                        zoom: vec2(chart_ratio, -asp),
+                        viewport: Some(ui.viewport),
+                        render_target: self.res.camera.render_target,
+                        ..Default::default()
+                    });
+                    self.ui(ui, tm)?;
+                    set_camera(&Camera2D {
+                        zoom: vec2(1., -asp),
+                        viewport: Some(ui.viewport),
+                        render_target: self.res.camera.render_target,
+                        ..Default::default()
+                    });
+                    self.overlay_ui(ui, tm)?;
+                }
             }
         } else {
             self.gl.flush();
