@@ -1,4 +1,6 @@
-use super::{BpmList, Effect, JudgeLine, JudgeLineKind, Matrix, Resource, UIElement, Vector, Video};
+use super::{
+    BlockArea, BpmList, Effect, JudgeLine, JudgeLineKind, Matrix, Resource, UIElement, Vector, Video, Zone,
+};
 use crate::{fs::FileSystem, judge::JudgeStatus, ui::Ui};
 use anyhow::{Context, Result};
 use macroquad::prelude::*;
@@ -37,6 +39,15 @@ pub(crate) static RENDER_CHUNK_SIZE: Lazy<usize> = Lazy::new(|| {
     std::env::var("PRPR_RENDER_CHUNK_SIZE").ok().and_then(|it| it.parse::<usize>().ok()).filter(|it| *it > 0).unwrap_or(128)
 });
 
+/// Per-frame cache of the resolved 噪域 rectangles.
+#[derive(Default)]
+struct BlockFrame {
+    timeline: super::block_timeline::BlockTimeline,
+    // `Resource::time` is an f32 in this fork, so the cache key is f32 too.
+    key: Option<(f32, f32, usize)>,
+    zones: Vec<Zone>,
+}
+
 #[derive(Default)]
 pub struct ChartExtra {
     pub effects: Vec<Effect>,
@@ -58,6 +69,9 @@ pub struct Chart {
     pub extra: ChartExtra,
     pub order: Vec<usize>,
     pub attach_ui: [Option<usize>; 7],
+    /// Phigros 9th-chapter 噪域 (`blockAreaList`). Empty for every older chart.
+    pub block_areas: Vec<BlockArea>,
+    block_frame: RefCell<BlockFrame>,
     world_positions: Vec<Vector>,
     local_states: Vec<LineLocalState>,
     trs: Vec<Matrix>,
@@ -93,6 +107,8 @@ impl Chart {
 
             order,
             attach_ui,
+            block_areas: Vec::new(),
+            block_frame: RefCell::default(),
             world_positions: Vec::with_capacity(capacity),
             local_states: Vec::with_capacity(capacity),
             trs: Vec::with_capacity(capacity),
@@ -206,6 +222,7 @@ impl Chart {
     }
 
     pub fn reset(&mut self) {
+        self.block_frame.get_mut().key = None;
         self.lines
             .iter_mut()
             .flat_map(|it| it.notes.iter_mut())
@@ -321,5 +338,39 @@ impl Chart {
             }
             res.note_buffer.borrow_mut().draw_all();
         });
+    }
+
+    /// Resolve the 噪域 rectangles for the current frame. The effect itself is
+    /// drawn by `GameScene` once the chart target has been composited, because
+    /// the shader samples that texture.
+    pub fn block_effect_zones(&self, res: &Resource) -> Vec<Zone> {
+        self.block_zones(res).to_vec()
+    }
+
+    /// Whether this chart has any 噪域 at all.
+    pub fn has_block_areas(&self) -> bool {
+        !self.block_areas.is_empty()
+    }
+
+    fn block_zones(&self, res: &Resource) -> std::cell::Ref<'_, [Zone]> {
+        // The block module works in seconds (f64); this fork's `Resource::time`
+        // is an f32, so widen once here.
+        let now = res.time as f64;
+        let key = (res.time, res.aspect_ratio, self.block_areas.len());
+        {
+            let mut cache = self.block_frame.borrow_mut();
+            if cache.key != Some(key) {
+                let BlockFrame { timeline, zones, .. } = &mut *cache;
+                zones.clear();
+                zones.extend(
+                    timeline
+                        .at(&self.block_areas, now)
+                        .iter()
+                        .filter_map(|&id| Zone::from_area(&self.block_areas[id], now, res.aspect_ratio)),
+                );
+                cache.key = Some(key);
+            }
+        }
+        std::cell::Ref::map(self.block_frame.borrow(), |cache| cache.zones.as_slice())
     }
 }

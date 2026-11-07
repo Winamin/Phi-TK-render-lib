@@ -12,6 +12,17 @@ pub type Matrix = nalgebra::Matrix3<f32>;
 mod anim;
 pub use anim::{Anim, AnimFloat, AnimVector, Keyframe};
 
+// ---- Phigros 9th-chapter block areas ("噪域" / noise field) ----
+// Ported from the community fork Ameiro-sudo/Phi-TK; the GPU shader path of the
+// original is GL-only, so this Vulkan branch ships the flat CPU renderer.
+mod block;
+pub use block::{
+    block_touch_blocked, touch_inset_world, BlockArea, BlockMoveEvent, BlockPhase, BlockRotateEvent, BlockScaleEvent, BlockTransform,
+};
+mod block_effect;
+pub use block_effect::{draw as draw_block_effect, Zone};
+mod block_timeline;
+
 mod chart;
 pub use chart::{Chart, ChartExtra, ChartSettings};
 
